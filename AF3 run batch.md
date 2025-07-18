@@ -1,6 +1,6 @@
-## Batch AF3 Script
 ### STEP 1: Generate JSON files in batch and file List
-
+Make sure this script is in the same folder with the CSV file download from TMT viewer. The UniprotID should be in column 2 and GeneSymbol should be in column 3 
+```
 import os
 import csv
 import json
@@ -131,8 +131,8 @@ print(f"Files saved in '{folder_name}' folder.")
 print(f"Created file list: {list_file_path}")
 print(f"Total JSON files: {len(json_files)}")
 print(f"Remember to update the job array size in your batch script to [1-{len(json_files)}]")
-
-### STEP 2: Generate Your JSON 
+```
+### STEP 3: submit the job
 - Before submitting this script, run the following command once:
 ```
 ls $HOME/af3_input_files/citrate_hits/*.json > $HOME/af3_input_files/citrate_hits_list.txt
@@ -145,13 +145,12 @@ wc -l $HOME/af3_input_files/citrate_hits_list.txt
 
 - Save this as something like ```submit_af3_json_jobs.bash```
 
-### STEP 3: submit the job
 ```
 #!/bin/bash
 #BSUB -q gpu
 #BSUB -J "af3_json[1-1293]"   # ⬅️ Update to match number of JSON files
 #BSUB -gpu "num=1:mode=exclusive_process:j_exclusive=yes"
-#BSUB -R "rusage[mem=4G] span[hosts=1]"
+#BSUB -R "rusage[mem=2G] span[hosts=1]"
 #BSUB -n 8
 #BSUB -W 8:00
 
