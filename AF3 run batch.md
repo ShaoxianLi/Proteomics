@@ -132,7 +132,7 @@ print(f"Created file list: {list_file_path}")
 print(f"Total JSON files: {len(json_files)}")
 print(f"Remember to update the job array size in your batch script to [1-{len(json_files)}]")
 ```
-### STEP 3: submit the job
+### STEP 2: submit the job
 - Before submitting this script, run the following command once:
 ```
 ls $HOME/af3_input_files/citrate_hits/*.json > $HOME/af3_input_files/citrate_hits_list.txt
