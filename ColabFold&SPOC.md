@@ -34,10 +34,88 @@ Local ColabFold is essentially the same software as ColabFold, but it's installe
 
 ### Copy and paste the following script in
 
-This code will submit the the same number of jobs to gpu as to the number of predictions you want to make. You can find the colabfold ouput in the same folder as the fasta sequence file. 
+This code will submit the the same number of jobs to gpu as to the number of predictions you want to make. You can find the colabfold ouput in the same folder as the fasta sequence file. this step incorpate the generation of  
     
-- Step 1: fetch all the fasta sequences for each multimers
+- Step 1: fetch all the fasta sequences for each multimers, For multiple multimer FASTA files provided in the .csv file. In the following code, I am excluding the protein paris whose amino acid length > 3600. If you want to generate fasta file regardless, just delete that block.
+ ```
+import os
+import csv
+from Bio import ExPASy, SwissProt
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio import ExPASy
+from Bio.SwissProt import read
+# Define your UniProt ID for chain A
+sequences = {
+    "chainA": "Q9GZQ8",  # MAPLC3B (changed from DSTYK)
+}
 
+# Create the main output folder
+folder_name = "All_multier_MAPLC3B"  # Updated folder name
+os.makedirs(folder_name, exist_ok=True)
+
+# Input CSV file with chainB UniProt IDs (second column to match JSON script)
+csv_file = "SL18_Live_pq_153 modified.csv"
+
+# Fetch MAPLC3B sequence once
+try:
+    handle_A = ExPASy.get_sprot_raw(sequences["chainA"])
+    record_A = SwissProt.read(handle_A)
+    seq_A = record_A.sequence
+    entry_name_A = record_A.entry_name
+    print(f"Successfully retrieved MAPLC3B sequence: {entry_name_A}")
+except Exception as e:
+    print(f"Failed to fetch MAPLC3B sequence: {e}")
+    exit(1)
+
+# Process each chainB UniProt ID
+with open(csv_file, "r", encoding="utf-8-sig") as file:
+    reader = csv.reader(file)
+    next(reader)  
+    header = next(reader)  # skip the first row, because the header is on the second row
+    
+    for row in reader:
+        chainB_id = row[1].strip()  # Changed from row[0] to row[1] - second column
+        if not chainB_id or chainB_id == "":  # Skip empty or header rows
+            continue
+
+        try:
+            # Fetch chainB sequence
+            handle_B = ExPASy.get_sprot_raw(chainB_id)
+            record_B = SwissProt.read(handle_B)
+            seq_B = record_B.sequence
+            entry_name_B = record_B.entry_name
+
+            # Skip if sequence length exceeds limit
+            if len(seq_A) + len(seq_B) > 3600:
+                print(f"Skipping {entry_name_B} (combined length > 3600)")
+                continue
+
+            # Combine sequences with colon
+            combined_seq = f"{seq_A}:{seq_B}"
+            combined_record = SeqRecord(
+                Seq(combined_seq),
+                id=f"{entry_name_A}_{entry_name_B}",
+                description=""
+            )
+
+            # Create subfolder for this pair
+            pair_folder_name = f"{entry_name_A}_{entry_name_B}"
+            pair_folder_path = os.path.join(folder_name, pair_folder_name)
+            os.makedirs(pair_folder_path, exist_ok=True)
+
+            # Write FASTA file into the subfolder
+            output_filename = f"pair_{entry_name_A}_{entry_name_B}.fasta"
+            output_path = os.path.join(pair_folder_path, output_filename)
+            with open(output_path, "w") as output_handle:
+                SeqIO.write(combined_record, output_path, "fasta")
+
+            print(f"Wrote: {output_path}")
+
+        except Exception as e:
+            print(f"Failed to process {chainB_id}: {e}")
+    ```
 - Step 2: store all the names of within the All_multimer folder in input_folder.txt
 
   ```bash
