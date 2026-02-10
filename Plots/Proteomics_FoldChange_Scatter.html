@@ -82,6 +82,22 @@
   .stats-bar { display: none; gap: 1.5rem; justify-content: center; margin-top: 0.6rem; font-family: 'JetBrains Mono'; font-size: 0.75rem; color: var(--text-dim); flex-wrap: wrap; }
   .stats-bar span { color: var(--text-bright); font-weight: 600; }
   .axis-labels { display: none; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-size: 0.72rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+
+  /* Pinned proteins panel */
+  .pinned-panel { display: none; width: 100%; max-width: 920px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem 1rem; margin-top: 0.8rem; }
+  .pinned-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+  .pinned-header h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
+  .clear-pins-btn { padding: 0.25rem 0.6rem; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 5px; font-family: 'DM Sans'; font-size: 0.7rem; cursor: pointer; transition: all 0.2s; }
+  .clear-pins-btn:hover { border-color: #f472b6; color: #f472b6; }
+  .pinned-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .pinned-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.7rem; background: rgba(79,140,255,0.1); border: 1px solid rgba(79,140,255,0.25); border-radius: 7px; font-size: 0.75rem; color: var(--text-bright); transition: all 0.2s; }
+  .pinned-chip .gene-name { font-weight: 600; font-family: 'JetBrains Mono'; }
+  .pinned-chip .fc-info { font-size: 0.68rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+  .pinned-chip a { color: var(--accent); text-decoration: none; font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; background: rgba(79,140,255,0.12); transition: all 0.2s; }
+  .pinned-chip a:hover { background: rgba(79,140,255,0.3); text-decoration: underline; }
+  .pinned-chip .remove-pin { color: var(--text-dim); cursor: pointer; font-size: 0.8rem; margin-left: 0.2rem; transition: color 0.2s; }
+  .pinned-chip .remove-pin:hover { color: #f472b6; }
+  .click-hint { display: none; text-align: center; font-size: 0.7rem; color: var(--text-dim); margin-top: 0.4rem; font-style: italic; }
 </style>
 </head>
 <body>
@@ -145,11 +161,27 @@
 </div>
 <div class="stats-bar" id="statsBar"></div>
 <div class="axis-labels" id="axisLabels"></div>
+<div class="click-hint" id="clickHint">Click any point to pin its label · Click again to unpin · Labels include UniProt links</div>
+
+<div class="pinned-panel" id="pinnedPanel">
+  <div class="pinned-header">
+    <h3>Pinned Proteins</h3>
+    <button class="clear-pins-btn" id="clearPinsBtn">Clear All</button>
+  </div>
+  <div class="pinned-list" id="pinnedList"></div>
+</div>
 
 <script>
 let dataA = null, dataB = null;
 let groupsA = {}, groupsB = {};
 let lastPlotData = null;
+
+// Global arrays for click handler — filled during buildPlot
+let plotGenes = [];      // gene name per point index
+let plotUniprots = [];   // uniprot ID per point index
+let plotX = [], plotY = [];
+let plotColors = [], plotSizes = [];
+let pinnedSet = new Set(); // set of pinned gene names
 
 // Update threshold note in real time
 document.getElementById('threshold').addEventListener('input', e => {
@@ -374,7 +406,7 @@ function buildPlot() {
     return;
   }
 
-  const x = [], y = [], text = [], colors = [], sizes = [];
+  const x = [], y = [], text = [], colors = [], sizes = [], geneArr = [], uniprotArr = [];
   let nUp = 0, nDown = 0, nMixed = 0, nSig = 0, nNeutral = 0;
   const exportRows = [];
 
@@ -399,6 +431,8 @@ function buildPlot() {
     } else { nNeutral++; }
 
     colors.push(color); sizes.push(size);
+    geneArr.push(gene);
+    uniprotArr.push(mapA[gene].uniprot || '');
 
     text.push(
       `<b>${gene}</b> (${mapA[gene].uniprot})<br>` +
@@ -424,7 +458,16 @@ function buildPlot() {
 
   lastPlotData = exportRows;
 
+  // Store globally for click handler
+  plotGenes = geneArr;
+  plotUniprots = uniprotArr;
+  plotX = x; plotY = y;
+  plotColors = colors; plotSizes = sizes;
+  pinnedSet.clear();
+  updatePinnedPanel();
+
   document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('clickHint').style.display = 'block';
   document.getElementById('legendBar').style.display = 'flex';
   document.getElementById('statsBar').style.display = 'flex';
   document.getElementById('exportBtn').style.display = 'inline-block';
@@ -488,7 +531,105 @@ function buildPlot() {
     hoverlabel: { bgcolor: '#1a1f33', bordercolor: '#2a3050', font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' }, align: 'left' },
     dragmode: 'zoom',
   }, { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false });
+
+  // ---- Click handler: pin/unpin annotation ----
+  const plotDiv = document.getElementById('plotDiv');
+  plotDiv.on('plotly_click', function(eventData) {
+    if (!eventData.points || !eventData.points.length) return;
+    const pt = eventData.points[0];
+    const idx = pt.pointIndex;
+    const gene = plotGenes[idx];
+    const uniprot = plotUniprots[idx];
+    if (!gene) return;
+
+    if (pinnedSet.has(gene)) {
+      // Unpin
+      pinnedSet.delete(gene);
+    } else {
+      // Pin
+      pinnedSet.add(gene);
+    }
+    refreshAnnotations();
+    updatePinnedPanel();
+  });
 }
+
+/* ========== ANNOTATION & PIN MANAGEMENT ========== */
+function refreshAnnotations() {
+  const plotDiv = document.getElementById('plotDiv');
+  const annotations = [];
+  pinnedSet.forEach(gene => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx === -1) return;
+    annotations.push({
+      x: plotX[idx],
+      y: plotY[idx],
+      text: `<b>${gene}</b>`,
+      showarrow: true,
+      arrowhead: 2,
+      arrowsize: 0.8,
+      arrowwidth: 1.5,
+      arrowcolor: '#4f8cff',
+      ax: 25,
+      ay: -30,
+      bgcolor: 'rgba(20, 24, 37, 0.92)',
+      bordercolor: '#4f8cff',
+      borderwidth: 1,
+      borderpad: 4,
+      font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' },
+    });
+  });
+  Plotly.relayout(plotDiv, { annotations: annotations });
+}
+
+function updatePinnedPanel() {
+  const panel = document.getElementById('pinnedPanel');
+  const list = document.getElementById('pinnedList');
+
+  if (pinnedSet.size === 0) {
+    panel.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+
+  panel.style.display = 'block';
+  list.innerHTML = '';
+
+  pinnedSet.forEach(gene => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx === -1) return;
+    const uniprot = plotUniprots[idx];
+    const l2A = plotX[idx].toFixed(3);
+    const l2B = plotY[idx].toFixed(3);
+
+    const chip = document.createElement('div');
+    chip.className = 'pinned-chip';
+
+    const uniprotLink = uniprot
+      ? `<a href="https://www.uniprot.org/uniprot/${encodeURIComponent(uniprot)}" target="_blank" rel="noopener">UniProt</a>`
+      : '';
+
+    chip.innerHTML =
+      `<span class="gene-name">${gene}</span>` +
+      `<span class="fc-info">A: ${l2A} | B: ${l2B}</span>` +
+      uniprotLink +
+      `<span class="remove-pin" title="Unpin">&times;</span>`;
+
+    chip.querySelector('.remove-pin').addEventListener('click', () => {
+      pinnedSet.delete(gene);
+      refreshAnnotations();
+      updatePinnedPanel();
+    });
+
+    list.appendChild(chip);
+  });
+}
+
+document.getElementById('clearPinsBtn').addEventListener('click', () => {
+  pinnedSet.clear();
+  refreshAnnotations();
+  updatePinnedPanel();
+});
 
 /* ========== EXPORT ========== */
 document.getElementById('exportBtn').addEventListener('click', () => {
