@@ -98,6 +98,26 @@
   .pinned-chip .remove-pin { color: var(--text-dim); cursor: pointer; font-size: 0.8rem; margin-left: 0.2rem; transition: color 0.2s; }
   .pinned-chip .remove-pin:hover { color: #f472b6; }
   .click-hint { display: none; text-align: center; font-size: 0.7rem; color: var(--text-dim); margin-top: 0.4rem; font-style: italic; }
+
+  /* Search bar */
+  .search-bar { display: none; width: 100%; max-width: 920px; margin-bottom: 1rem; position: relative; }
+  .search-bar input { width: 100%; padding: 0.55rem 0.9rem 0.55rem 2.2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; color: var(--text-bright); font-family: 'JetBrains Mono'; font-size: 0.82rem; transition: border-color 0.2s; }
+  .search-bar input:focus { outline: none; border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--text-dim); }
+  .search-icon { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.9rem; pointer-events: none; }
+  .search-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border-hi); border-radius: 0 0 9px 9px; max-height: 200px; overflow-y: auto; z-index: 100; display: none; }
+  .search-suggestions .sug-item { padding: 0.4rem 0.9rem; font-size: 0.78rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono'; }
+  .search-suggestions .sug-item:hover { background: rgba(79,140,255,0.12); }
+  .search-suggestions .sug-item .sug-gene { color: var(--text-bright); font-weight: 600; }
+  .search-suggestions .sug-item .sug-id { color: var(--text-dim); font-size: 0.7rem; }
+  .search-suggestions .sug-item .sug-fc { color: var(--text-dim); font-size: 0.68rem; }
+
+  /* Bar plot container */
+  .barplot-section { display: none; width: 100%; max-width: 920px; margin-top: 1rem; }
+  .barplot-title { font-size: 0.82rem; font-weight: 600; color: var(--text-bright); text-align: center; margin-bottom: 0.5rem; font-family: 'JetBrains Mono'; }
+  .barplot-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .barplot-panel { flex: 1; min-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem; }
+  .barplot-panel-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; margin-bottom: 0.3rem; text-align: center; }
 </style>
 </head>
 <body>
@@ -143,6 +163,12 @@
   <button class="export-btn" id="exportBtn">⬇ Export CSV</button>
 </div>
 
+<div class="search-bar" id="searchBar">
+  <span class="search-icon">&#128270;</span>
+  <input type="text" id="searchInput" placeholder="Search protein (gene symbol)…" autocomplete="off">
+  <div class="search-suggestions" id="searchSuggestions"></div>
+</div>
+
 <div id="plot-container">
   <div class="placeholder" id="placeholder">
     <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
@@ -171,6 +197,20 @@
   <div class="pinned-list" id="pinnedList"></div>
 </div>
 
+<div class="barplot-section" id="barplotSection">
+  <div class="barplot-title" id="barplotTitle"></div>
+  <div class="barplot-row">
+    <div class="barplot-panel">
+      <div class="barplot-panel-label">Dataset A</div>
+      <div id="barPlotA" style="width:100%;height:320px;"></div>
+    </div>
+    <div class="barplot-panel">
+      <div class="barplot-panel-label">Dataset B</div>
+      <div id="barPlotB" style="width:100%;height:320px;"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 let dataA = null, dataB = null;
 let groupsA = {}, groupsB = {};
@@ -182,6 +222,16 @@ let plotUniprots = [];   // uniprot ID per point index
 let plotX = [], plotY = [];
 let plotColors = [], plotSizes = [];
 let pinnedSet = new Set(); // set of pinned gene names
+
+// Store current group selections for bar plot
+let currentCtrA = '', currentTrtA = '', currentCtrB = '', currentTrtB = '';
+let currentIsLogA = false, currentIsLogB = false;
+
+// Color palette for groups in bar plot (up to 10 groups)
+const GROUP_COLORS = [
+  '#4f8cff', '#34d399', '#f472b6', '#facc15', '#818cf8',
+  '#fb923c', '#22d3ee', '#a3e635', '#e879f9', '#f87171'
+];
 
 // Update threshold note in real time
 document.getElementById('threshold').addEventListener('input', e => {
@@ -466,8 +516,15 @@ function buildPlot() {
   pinnedSet.clear();
   updatePinnedPanel();
 
+  // Store current selections for bar plot
+  currentCtrA = ctrA; currentTrtA = trtA;
+  currentCtrB = ctrB; currentTrtB = trtB;
+  currentIsLogA = isLogA; currentIsLogB = isLogB;
+
   document.getElementById('placeholder').style.display = 'none';
   document.getElementById('clickHint').style.display = 'block';
+  document.getElementById('searchBar').style.display = 'block';
+  document.getElementById('barplotSection').style.display = 'none';
   document.getElementById('legendBar').style.display = 'flex';
   document.getElementById('statsBar').style.display = 'flex';
   document.getElementById('exportBtn').style.display = 'inline-block';
@@ -543,14 +600,13 @@ function buildPlot() {
     if (!gene) return;
 
     if (pinnedSet.has(gene)) {
-      // Unpin
       pinnedSet.delete(gene);
     } else {
-      // Pin
       pinnedSet.add(gene);
     }
     refreshAnnotations();
     updatePinnedPanel();
+    showBarPlot(gene);
   });
 }
 
@@ -630,6 +686,154 @@ document.getElementById('clearPinsBtn').addEventListener('click', () => {
   refreshAnnotations();
   updatePinnedPanel();
 });
+
+/* ========== BAR PLOT ========== */
+function showBarPlot(gene) {
+  const section = document.getElementById('barplotSection');
+  const titleEl = document.getElementById('barplotTitle');
+
+  // Find the gene row in each dataset
+  const rowA = dataA ? dataA.rows.find(r => r['GeneSymbol'] === gene) : null;
+  const rowB = dataB ? dataB.rows.find(r => r['GeneSymbol'] === gene) : null;
+
+  if (!rowA && !rowB) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  const uniprot = (rowA && rowA['UniprotID']) || (rowB && rowB['UniprotID']) || '';
+  titleEl.innerHTML = `<b>${gene}</b>` + (uniprot ? ` (${uniprot})` : '') +
+    ` — All Channels Expression`;
+
+  // Helper: build one bar chart for a dataset
+  function buildBars(divId, row, groups, isLog) {
+    if (!row || !groups) {
+      Plotly.purge(document.getElementById(divId));
+      return;
+    }
+    const groupNames = Object.keys(groups);
+    const traces = [];
+
+    groupNames.forEach((gName, gi) => {
+      const cols = groups[gName];
+      const vals = cols.map(c => {
+        const v = parseFloat(row[c]);
+        return isNaN(v) ? 0 : v;
+      });
+      const color = GROUP_COLORS[gi % GROUP_COLORS.length];
+
+      traces.push({
+        x: cols,
+        y: vals,
+        type: 'bar',
+        name: gName,
+        marker: {
+          color: color,
+          opacity: 0.85,
+          line: { width: 0.5, color: 'rgba(255,255,255,0.15)' }
+        },
+        hovertemplate: `<b>${gName}</b><br>%{x}: %{y:.3f}<extra></extra>`,
+      });
+    });
+
+    Plotly.newPlot(divId, traces, {
+      paper_bgcolor: '#141825',
+      plot_bgcolor: '#0f1220',
+      font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 11 },
+      xaxis: {
+        tickangle: -45,
+        tickfont: { family: 'JetBrains Mono', size: 8 },
+        gridcolor: 'rgba(255,255,255,0.035)',
+      },
+      yaxis: {
+        title: { text: isLog ? 'log₂(Abundance)' : 'Abundance', font: { size: 11 } },
+        gridcolor: 'rgba(255,255,255,0.06)',
+        tickfont: { family: 'JetBrains Mono', size: 9 },
+      },
+      barmode: 'group',
+      showlegend: true,
+      legend: { orientation: 'h', y: -0.35, x: 0.5, xanchor: 'center', font: { size: 9 } },
+      margin: { l: 55, r: 15, t: 10, b: 90 },
+    }, { responsive: true, displayModeBar: false });
+  }
+
+  buildBars('barPlotA', rowA, groupsA, currentIsLogA);
+  buildBars('barPlotB', rowB, groupsB, currentIsLogB);
+}
+
+/* ========== SEARCH ========== */
+const searchInput = document.getElementById('searchInput');
+const searchSuggestions = document.getElementById('searchSuggestions');
+
+searchInput.addEventListener('input', () => {
+  const query = searchInput.value.trim().toLowerCase();
+  searchSuggestions.innerHTML = '';
+  if (!query || !plotGenes.length) {
+    searchSuggestions.style.display = 'none';
+    return;
+  }
+
+  const matches = [];
+  for (let i = 0; i < plotGenes.length && matches.length < 15; i++) {
+    const g = plotGenes[i];
+    const u = plotUniprots[i];
+    if (g.toLowerCase().includes(query) || u.toLowerCase().includes(query)) {
+      matches.push({ gene: g, uniprot: u, idx: i });
+    }
+  }
+
+  if (!matches.length) {
+    searchSuggestions.style.display = 'none';
+    return;
+  }
+
+  searchSuggestions.style.display = 'block';
+  matches.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'sug-item';
+    div.innerHTML =
+      `<span><span class="sug-gene">${m.gene}</span> <span class="sug-id">${m.uniprot}</span></span>` +
+      `<span class="sug-fc">A: ${plotX[m.idx].toFixed(3)} | B: ${plotY[m.idx].toFixed(3)}</span>`;
+    div.addEventListener('click', () => {
+      selectProtein(m.gene);
+      searchInput.value = m.gene;
+      searchSuggestions.style.display = 'none';
+    });
+    searchSuggestions.appendChild(div);
+  });
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const query = searchInput.value.trim().toLowerCase();
+    const idx = plotGenes.findIndex(g => g.toLowerCase() === query);
+    if (idx >= 0) {
+      selectProtein(plotGenes[idx]);
+      searchSuggestions.style.display = 'none';
+    } else if (searchSuggestions.querySelector('.sug-item')) {
+      searchSuggestions.querySelector('.sug-item').click();
+    }
+  }
+  if (e.key === 'Escape') {
+    searchSuggestions.style.display = 'none';
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-bar')) {
+    searchSuggestions.style.display = 'none';
+  }
+});
+
+function selectProtein(gene) {
+  if (!pinnedSet.has(gene)) {
+    pinnedSet.add(gene);
+    refreshAnnotations();
+    updatePinnedPanel();
+  }
+  showBarPlot(gene);
+}
 
 /* ========== EXPORT ========== */
 document.getElementById('exportBtn').addEventListener('click', () => {
