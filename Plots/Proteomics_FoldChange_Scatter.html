@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proteomics Fold Change Scatter</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0c0f1a;
+    --surface: #141825;
+    --border: #1e2438;
+    --border-hi: #2a3050;
+    --text: #c8cdd8;
+    --text-dim: #6b7280;
+    --text-bright: #e8ecf4;
+    --accent: #4f8cff;
+    --up: #34d399;
+    --down: #f472b6;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 1rem;
+  }
+
+  .header { text-align: center; margin-bottom: 1.2rem; max-width: 860px; }
+  .header h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-bright); letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+  .header p { font-size: 0.82rem; color: var(--text-dim); line-height: 1.5; }
+
+  .panel-row { display: flex; gap: 1rem; width: 100%; max-width: 920px; margin-bottom: 1rem; flex-wrap: wrap; justify-content: center; }
+  .panel { flex: 1; min-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; }
+  .panel-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 600; margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.5rem; }
+  .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; }
+  .badge-a { background: rgba(79,140,255,0.15); color: var(--accent); }
+  .badge-b { background: rgba(250,204,21,0.15); color: #facc15; }
+
+  .file-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; }
+  .file-btn { padding: 0.45rem 0.9rem; background: var(--border); color: var(--text); border: 1px solid var(--border-hi); border-radius: 7px; font-family: 'DM Sans'; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .file-btn:hover { border-color: var(--accent); }
+  .file-btn.loaded { border-color: var(--up); color: var(--up); }
+  .file-btn input { display: none; }
+  .file-name { font-family: 'JetBrains Mono'; font-size: 0.72rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+
+  .group-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+  .group-row label { font-size: 0.75rem; color: var(--text-dim); min-width: 68px; font-weight: 500; }
+  select { flex: 1; padding: 0.4rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.78rem; cursor: pointer; }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  .check-row { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-dim); }
+  .check-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+
+  .debug-info { font-family: 'JetBrains Mono'; font-size: 0.68rem; color: var(--text-dim); margin-top: 0.5rem; padding: 0.4rem 0.6rem; background: rgba(0,0,0,0.3); border-radius: 5px; max-height: 60px; overflow-y: auto; display: none; word-break: break-all; }
+
+  .controls-bar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 1rem; }
+  .threshold-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
+  .threshold-input { width: 65px; padding: 0.4rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.82rem; text-align: center; }
+  .threshold-note { font-size: 0.7rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+  .run-btn { padding: 0.5rem 1.6rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-family: 'DM Sans'; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .run-btn:hover { background: #3a7af0; transform: translateY(-1px); }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .export-btn { padding: 0.5rem 1rem; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans'; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; display: none; }
+  .export-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  #plot-container { width: 100%; max-width: 920px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; min-height: 600px; position: relative; }
+  .placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.88rem; gap: 0.5rem; }
+  .placeholder svg { opacity: 0.25; }
+
+  .legend-bar { display: none; gap: 1.2rem; justify-content: center; margin-top: 0.8rem; font-size: 0.75rem; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 0.35rem; color: var(--text-dim); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .stats-bar { display: none; gap: 1.5rem; justify-content: center; margin-top: 0.6rem; font-family: 'JetBrains Mono'; font-size: 0.75rem; color: var(--text-dim); flex-wrap: wrap; }
+  .stats-bar span { color: var(--text-bright); font-weight: 600; }
+  .axis-labels { display: none; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-size: 0.72rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Proteomics log₂(FC) Scatter</h1>
+  <p>Compare treatment/control fold changes across two datasets. Axes show log₂(FC) — origin = 0 (no change), positive = up, negative = down.</p>
+</div>
+
+<div class="panel-row">
+  <div class="panel">
+    <div class="panel-title"><span class="badge badge-a">A</span> Dataset A → X-axis</div>
+    <div class="file-row">
+      <label class="file-btn" id="labelA">Upload CSV…<input type="file" id="fileA" accept=".csv,.tsv,.txt"></label>
+      <span class="file-name" id="fnameA">no file</span>
+    </div>
+    <div class="group-row"><label>Control</label><select id="ctrA" disabled><option>— upload file —</option></select></div>
+    <div class="group-row"><label>Treatment</label><select id="trtA" disabled><option>— upload file —</option></select></div>
+    <div class="check-row"><input type="checkbox" id="logA"> <label for="logA">Data is log₂-transformed</label></div>
+    <div class="debug-info" id="debugA"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><span class="badge badge-b">B</span> Dataset B → Y-axis</div>
+    <div class="file-row">
+      <label class="file-btn" id="labelB">Upload CSV…<input type="file" id="fileB" accept=".csv,.tsv,.txt"></label>
+      <span class="file-name" id="fnameB">no file</span>
+    </div>
+    <div class="group-row"><label>Control</label><select id="ctrB" disabled><option>— upload file —</option></select></div>
+    <div class="group-row"><label>Treatment</label><select id="trtB" disabled><option>— upload file —</option></select></div>
+    <div class="check-row"><input type="checkbox" id="logB"> <label for="logB">Data is log₂-transformed</label></div>
+    <div class="debug-info" id="debugB"></div>
+  </div>
+</div>
+
+<div class="controls-bar">
+  <div class="threshold-group">
+    <label>FC Threshold</label>
+    <input type="number" class="threshold-input" id="threshold" value="1.25" step="0.05" min="1">
+    <span class="threshold-note" id="threshNote">= ±0.322 log₂</span>
+  </div>
+  <button class="run-btn" id="runBtn" disabled>Plot</button>
+  <button class="export-btn" id="exportBtn">⬇ Export CSV</button>
+</div>
+
+<div id="plot-container">
+  <div class="placeholder" id="placeholder">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+    Upload both CSVs, select groups, then click <strong>Plot</strong>
+  </div>
+  <div id="plotDiv" style="width:100%;height:620px;"></div>
+</div>
+
+<div class="legend-bar" id="legendBar">
+  <div class="legend-item"><div class="legend-dot" style="background:#475569;"></div> Below threshold</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#34d399;"></div> Up in both</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f472b6;"></div> Down in both</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#facc15;"></div> Up A / Down B</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#818cf8;"></div> Down A / Up B</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4f8cff;"></div> Sig. in one axis</div>
+</div>
+<div class="stats-bar" id="statsBar"></div>
+<div class="axis-labels" id="axisLabels"></div>
+
+<script>
+let dataA = null, dataB = null;
+let groupsA = {}, groupsB = {};
+let lastPlotData = null;
+
+// Update threshold note in real time
+document.getElementById('threshold').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (v > 0) document.getElementById('threshNote').textContent = `= ±${Math.log2(v).toFixed(3)} log₂`;
+});
+
+/* ========== ROBUST CSV/TSV PARSER ========== */
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return { headers: [], rows: [], sep: ',', headerCount: 0 };
+
+  const firstLine = lines[0];
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const sep = tabCount > commaCount ? '\t' : ',';
+
+  function splitLine(line) {
+    const result = [];
+    let current = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+        else if (ch === '"') inQuotes = false;
+        else current += ch;
+      } else {
+        if (ch === '"') inQuotes = true;
+        else if (ch === sep) { result.push(current.trim()); current = ''; }
+        else current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const headers = splitLine(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const vals = splitLine(line);
+    if (vals[0] && vals[0].startsWith('**')) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = vals[idx] ?? ''; });
+    rows.push(obj);
+  }
+  return { headers, rows, sep, headerCount: headers.length };
+}
+
+/* ========== GROUP DETECTION ========== */
+function detectGroups(headers) {
+  const metaCols = new Set(['UniprotID','GeneSymbol','Description','Peptides','MosaicID']);
+  const numericCols = headers.filter(h => !metaCols.has(h) && !metaCols.has(h.toLowerCase()));
+  if (!numericCols.length) return {};
+
+  const groups = {};
+  numericCols.forEach(col => {
+    const match = col.match(/^(.+?)_(\d+)$/);
+    if (match) {
+      const prefix = match[1];
+      if (!groups[prefix]) groups[prefix] = [];
+      groups[prefix].push(col);
+    }
+  });
+
+  const groupNames = Object.keys(groups);
+  const avgSize = groupNames.length > 0
+    ? groupNames.reduce((s, g) => s + groups[g].length, 0) / groupNames.length : 0;
+  if (avgSize >= 2) return groups;
+
+  // Fallback
+  const groups2 = {};
+  numericCols.forEach(col => {
+    const match = col.match(/^(.+?)_\d+[a-z]*_\d+$/i);
+    if (match) {
+      if (!groups2[match[1]]) groups2[match[1]] = [];
+      groups2[match[1]].push(col);
+    }
+  });
+  const avg2 = Object.keys(groups2).length > 0
+    ? Object.keys(groups2).reduce((s, g) => s + groups2[g].length, 0) / Object.keys(groups2).length : 0;
+  if (avg2 >= 2) return groups2;
+
+  const groups3 = {};
+  numericCols.forEach(col => { groups3[col] = [col]; });
+  return groups3;
+}
+
+function populateSelects(groups, ctrSel, trtSel) {
+  const names = Object.keys(groups);
+  ctrSel.innerHTML = '';
+  trtSel.innerHTML = '';
+  names.forEach(name => {
+    const cols = groups[name];
+    const label = `${name}  [${cols.join(', ')}]`;
+    ctrSel.add(new Option(label, name));
+    trtSel.add(new Option(label, name));
+  });
+  ctrSel.disabled = false;
+  trtSel.disabled = false;
+  const ctrIdx = names.findIndex(n => /^ctr/i.test(n));
+  if (ctrIdx >= 0) ctrSel.selectedIndex = ctrIdx;
+  const trtIdx = names.findIndex((_, i) => i !== (ctrIdx >= 0 ? ctrIdx : -1));
+  if (trtIdx >= 0) trtSel.selectedIndex = trtIdx;
+}
+
+function autoDetectLog(data, groups, checkboxId) {
+  const firstGroup = Object.values(groups)[0];
+  if (!firstGroup) return;
+  let maxVal = 0;
+  for (let i = 0; i < Math.min(20, data.rows.length); i++) {
+    firstGroup.forEach(col => {
+      const v = parseFloat(data.rows[i][col]);
+      if (!isNaN(v) && v > maxVal) maxVal = v;
+    });
+  }
+  document.getElementById(checkboxId).checked = (maxVal < 25);
+}
+
+function showDebug(id, data, groups) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  const gNames = Object.keys(groups);
+  const gSummary = gNames.map(g => `${g} (n=${groups[g].length}): ${groups[g].join(', ')}`).join('\n');
+  el.textContent =
+    `Sep: "${data.sep === '\t' ? 'TAB' : data.sep}" | Cols: ${data.headerCount} | Rows: ${data.rows.length} | Groups: ${gNames.length}\n` +
+    `---\n${gSummary}`;
+}
+
+/* ========== FILE HANDLERS ========== */
+document.getElementById('fileA').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  file.text().then(t => {
+    dataA = parseCSV(t);
+    groupsA = detectGroups(dataA.headers);
+    populateSelects(groupsA, document.getElementById('ctrA'), document.getElementById('trtA'));
+    document.getElementById('labelA').classList.add('loaded');
+    document.getElementById('fnameA').textContent = file.name;
+    autoDetectLog(dataA, groupsA, 'logA');
+    showDebug('debugA', dataA, groupsA);
+    checkReady();
+  });
+});
+
+document.getElementById('fileB').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  file.text().then(t => {
+    dataB = parseCSV(t);
+    groupsB = detectGroups(dataB.headers);
+    populateSelects(groupsB, document.getElementById('ctrB'), document.getElementById('trtB'));
+    document.getElementById('labelB').classList.add('loaded');
+    document.getElementById('fnameB').textContent = file.name;
+    autoDetectLog(dataB, groupsB, 'logB');
+    showDebug('debugB', dataB, groupsB);
+    checkReady();
+  });
+});
+
+function checkReady() {
+  document.getElementById('runBtn').disabled = !(dataA && dataB);
+}
+
+/* ========== COMPUTE FC ========== */
+function mean(arr) {
+  const v = arr.filter(x => !isNaN(x));
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN;
+}
+
+function computeFC(data, groups, ctrName, trtName, isLog) {
+  const ctrCols = groups[ctrName], trtCols = groups[trtName];
+  if (!ctrCols || !trtCols) return {};
+  const result = {};
+  data.rows.forEach(r => {
+    const gene = r['GeneSymbol'];
+    if (!gene || gene === 'NA' || gene === '') return;
+    const ctrVals = ctrCols.map(c => parseFloat(r[c])).filter(v => !isNaN(v));
+    const trtVals = trtCols.map(c => parseFloat(r[c])).filter(v => !isNaN(v));
+    if (!ctrVals.length || !trtVals.length) return;
+    const ctrMean = mean(ctrVals), trtMean = mean(trtVals);
+    if (isNaN(ctrMean) || isNaN(trtMean)) return;
+    if (!isLog && ctrMean === 0) return;
+
+    let fc, log2fc;
+    if (isLog) {
+      // Data already log2: log2FC = trtMean - ctrMean
+      log2fc = trtMean - ctrMean;
+      fc = Math.pow(2, log2fc);
+    } else {
+      fc = trtMean / ctrMean;
+      log2fc = Math.log2(fc);
+    }
+    result[gene] = {
+      fc, log2fc, uniprot: r['UniprotID'], desc: r['Description'],
+      peptides: r['Peptides'],
+      ctrMean: isLog ? ctrMean.toFixed(3) : ctrMean.toFixed(1),
+      trtMean: isLog ? trtMean.toFixed(3) : trtMean.toFixed(1),
+    };
+  });
+  return result;
+}
+
+/* ========== BUILD PLOT ========== */
+document.getElementById('runBtn').addEventListener('click', buildPlot);
+
+function buildPlot() {
+  const threshold = parseFloat(document.getElementById('threshold').value) || 1.25;
+  const log2Thresh = Math.log2(threshold); // e.g. log2(1.25) ≈ 0.322
+  const ctrA = document.getElementById('ctrA').value;
+  const trtA = document.getElementById('trtA').value;
+  const ctrB = document.getElementById('ctrB').value;
+  const trtB = document.getElementById('trtB').value;
+  const isLogA = document.getElementById('logA').checked;
+  const isLogB = document.getElementById('logB').checked;
+
+  const mapA = computeFC(dataA, groupsA, ctrA, trtA, isLogA);
+  const mapB = computeFC(dataB, groupsB, ctrB, trtB, isLogB);
+  const genes = Object.keys(mapA).filter(g => g in mapB);
+
+  if (genes.length === 0) {
+    alert(`No matching genes found!\n\nDataset A: ${Object.keys(mapA).length} genes\nDataset B: ${Object.keys(mapB).length} genes\n\nCheck that both files have a "GeneSymbol" column.`);
+    return;
+  }
+
+  const x = [], y = [], text = [], colors = [], sizes = [];
+  let nUp = 0, nDown = 0, nMixed = 0, nSig = 0, nNeutral = 0;
+  const exportRows = [];
+
+  genes.forEach(gene => {
+    const l2A = mapA[gene].log2fc;
+    const l2B = mapB[gene].log2fc;
+    x.push(l2A); y.push(l2B);
+
+    const sigA_up = l2A >= log2Thresh, sigA_down = l2A <= -log2Thresh;
+    const sigB_up = l2B >= log2Thresh, sigB_down = l2B <= -log2Thresh;
+    const sigA = sigA_up || sigA_down, sigB = sigB_up || sigB_down;
+
+    let color = '#475569', size = 5, cat = 'neutral';
+    if (sigA && sigB) {
+      if (sigA_up && sigB_up)          { color = '#34d399'; nUp++; cat = 'up_both'; }
+      else if (sigA_down && sigB_down) { color = '#f472b6'; nDown++; cat = 'down_both'; }
+      else if (sigA_up && sigB_down)   { color = '#facc15'; nMixed++; cat = 'up_A_down_B'; }
+      else                             { color = '#818cf8'; nMixed++; cat = 'down_A_up_B'; }
+      size = 8;
+    } else if (sigA || sigB) {
+      color = '#4f8cff'; nSig++; cat = 'one_axis'; size = 6;
+    } else { nNeutral++; }
+
+    colors.push(color); sizes.push(size);
+
+    text.push(
+      `<b>${gene}</b> (${mapA[gene].uniprot})<br>` +
+      `${(mapA[gene].desc || '').substring(0, 60)}<br>` +
+      `─────────────────<br>` +
+      `<b>A</b> log₂FC: ${l2A.toFixed(3)}  (FC: ${mapA[gene].fc.toFixed(3)})<br>` +
+      `  ${trtA} / ${ctrA}<br>` +
+      `  Ctr: ${mapA[gene].ctrMean}  Trt: ${mapA[gene].trtMean}${isLogA ? ' (log₂)' : ''}<br>` +
+      `<b>B</b> log₂FC: ${l2B.toFixed(3)}  (FC: ${mapB[gene].fc.toFixed(3)})<br>` +
+      `  ${trtB} / ${ctrB}<br>` +
+      `  Ctr: ${mapB[gene].ctrMean}  Trt: ${mapB[gene].trtMean}${isLogB ? ' (log₂)' : ''}<br>` +
+      `Peptides A:${mapA[gene].peptides}  B:${mapB[gene].peptides}`
+    );
+
+    exportRows.push({
+      GeneSymbol: gene, UniprotID_A: mapA[gene].uniprot, UniprotID_B: mapB[gene].uniprot,
+      Description: mapA[gene].desc,
+      log2FC_A: l2A, FC_A: mapA[gene].fc,
+      log2FC_B: l2B, FC_B: mapB[gene].fc,
+      Category: cat
+    });
+  });
+
+  lastPlotData = exportRows;
+
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('legendBar').style.display = 'flex';
+  document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('exportBtn').style.display = 'inline-block';
+  document.getElementById('axisLabels').style.display = 'flex';
+
+  document.getElementById('statsBar').innerHTML =
+    `Matched: <span>${genes.length}</span> · Up both: <span style="color:#34d399">${nUp}</span> · ` +
+    `Down both: <span style="color:#f472b6">${nDown}</span> · Discordant: <span style="color:#facc15">${nMixed}</span> · ` +
+    `One axis: <span style="color:#4f8cff">${nSig}</span> · Neutral: <span>${nNeutral}</span>`;
+
+  document.getElementById('axisLabels').innerHTML =
+    `X: ${trtA} / ${ctrA} &nbsp;|&nbsp; Y: ${trtB} / ${ctrB} &nbsp;|&nbsp; Threshold: ${threshold}× = ±${log2Thresh.toFixed(3)} log₂`;
+
+  // Symmetric axis range
+  const absMax = Math.max(
+    Math.max(...x.map(Math.abs)),
+    Math.max(...y.map(Math.abs))
+  ) * 1.1;
+  const axRange = [-absMax, absMax];
+
+  const dash = { color: 'rgba(255,255,255,0.15)', width: 1, dash: 'dash' };
+  const shapes = [
+    // Vertical threshold lines
+    { type: 'line', x0: log2Thresh, x1: log2Thresh, y0: -absMax, y1: absMax, line: dash },
+    { type: 'line', x0: -log2Thresh, x1: -log2Thresh, y0: -absMax, y1: absMax, line: dash },
+    // Horizontal threshold lines
+    { type: 'line', x0: -absMax, x1: absMax, y0: log2Thresh, y1: log2Thresh, line: dash },
+    { type: 'line', x0: -absMax, x1: absMax, y0: -log2Thresh, y1: -log2Thresh, line: dash },
+    // Origin cross
+    { type: 'line', x0: 0, x1: 0, y0: -absMax, y1: absMax, line: { color: 'rgba(255,255,255,0.08)', width: 1 } },
+    { type: 'line', x0: -absMax, x1: absMax, y0: 0, y1: 0, line: { color: 'rgba(255,255,255,0.08)', width: 1 } },
+    // Diagonal identity
+    { type: 'line', x0: -absMax, x1: absMax, y0: -absMax, y1: absMax, line: { color: 'rgba(255,255,255,0.05)', width: 1 } },
+  ];
+
+  Plotly.newPlot('plotDiv', [{
+    x, y, mode: 'markers', type: 'scattergl', text, hoverinfo: 'text',
+    marker: { color: colors, size: sizes, opacity: 0.85, line: { width: 0.5, color: 'rgba(255,255,255,0.12)' } }
+  }], {
+    paper_bgcolor: '#141825', plot_bgcolor: '#0f1220',
+    font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 12 },
+    xaxis: {
+      title: { text: `Dataset A — log₂(FC)  ${trtA} / ${ctrA}`, font: { size: 13 } },
+      range: axRange,
+      gridcolor: 'rgba(255,255,255,0.035)',
+      zerolinecolor: 'rgba(255,255,255,0.08)',
+      tickfont: { family: 'JetBrains Mono', size: 10 },
+      dtick: 0.5,
+    },
+    yaxis: {
+      title: { text: `Dataset B — log₂(FC)  ${trtB} / ${ctrB}`, font: { size: 13 } },
+      range: axRange,
+      gridcolor: 'rgba(255,255,255,0.035)',
+      zerolinecolor: 'rgba(255,255,255,0.08)',
+      tickfont: { family: 'JetBrains Mono', size: 10 },
+      dtick: 0.5,
+      scaleanchor: 'x', scaleratio: 1,
+    },
+    shapes,
+    margin: { l: 70, r: 30, t: 20, b: 70 },
+    hoverlabel: { bgcolor: '#1a1f33', bordercolor: '#2a3050', font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' }, align: 'left' },
+    dragmode: 'zoom',
+  }, { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false });
+}
+
+/* ========== EXPORT ========== */
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (!lastPlotData) return;
+  const h = Object.keys(lastPlotData[0]);
+  const csv = [h.join(','),
+    ...lastPlotData.map(r => h.map(k => {
+      const v = r[k];
+      return typeof v === 'number' ? v.toFixed(4) : `"${String(v).replace(/"/g, '""')}"`;
+    }).join(','))
+  ].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'fold_change_scatter_data.csv';
+  a.click();
+});
+</script>
+
+</body>
+</html>
