@@ -837,25 +837,38 @@ function buildPlot() {
 
 /* ========== ANNOTATION & PIN MANAGEMENT ========== */
 function refreshAnnotations() {
-  const targetDiv = currentMode === 'scatter' ? 'plotDiv' : 'volcanoDiv';
+  if (currentMode !== 'scatter') return;
   const annotations = [];
+
+  // Highlighted genes — gold labels (drawn first so pinned renders on top)
+  const hlArr = [...highlightedGenes];
+  const offsets = [{ax:0,ay:-16},{ax:0,ay:18},{ax:22,ay:-12},{ax:-22,ay:-12},{ax:22,ay:14},{ax:-22,ay:14}];
+  hlArr.forEach((gene, i) => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx === -1) return;
+    const o = offsets[i % offsets.length];
+    annotations.push({
+      x: plotX[idx], y: plotY[idx], text: gene,
+      showarrow: true, arrowhead: 0, arrowwidth: 1, arrowcolor: 'rgba(250,204,21,0.5)',
+      ax: o.ax, ay: o.ay,
+      bgcolor: 'rgba(20,24,37,0.88)', bordercolor: 'rgba(250,204,21,0.7)', borderwidth: 1, borderpad: 2,
+      font: { family: 'JetBrains Mono', size: 8.5, color: '#facc15' },
+    });
+  });
+
+  // Pinned proteins — blue labels with arrows (on top)
   pinnedSet.forEach(gene => {
     const idx = plotGenes.indexOf(gene);
     if (idx === -1) return;
-    const ax = currentMode === 'scatter' ? plotX[idx] : null;
-    const ay = currentMode === 'scatter' ? plotY[idx] : null;
-    if (currentMode === 'scatter') {
-      annotations.push({
-        x: plotX[idx], y: plotY[idx], text: `<b>${gene}</b>`,
-        showarrow: true, arrowhead: 2, arrowsize: 0.8, arrowwidth: 1.5, arrowcolor: '#4f8cff',
-        ax: 25, ay: -30, bgcolor: 'rgba(20,24,37,0.92)', bordercolor: '#4f8cff', borderwidth: 1, borderpad: 4,
-        font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' },
-      });
-    }
+    annotations.push({
+      x: plotX[idx], y: plotY[idx], text: `<b>${gene}</b>`,
+      showarrow: true, arrowhead: 2, arrowsize: 0.8, arrowwidth: 1.5, arrowcolor: '#4f8cff',
+      ax: 25, ay: -30, bgcolor: 'rgba(20,24,37,0.92)', bordercolor: '#4f8cff', borderwidth: 1, borderpad: 4,
+      font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' },
+    });
   });
-  if (currentMode === 'scatter') {
-    Plotly.relayout('plotDiv', { annotations });
-  }
+
+  Plotly.relayout('plotDiv', { annotations });
 }
 
 function updatePinnedPanel() {
@@ -1133,46 +1146,21 @@ document.querySelectorAll('.gs-tab').forEach(tab => {
   });
 });
 
-// Shared: apply highlight overlay to scatter plot
+// Shared: apply highlight overlay via annotations (renders on top of WebGL)
 function applyHighlightOverlay(geneList) {
   highlightedGenes.clear();
-  const hlX = [], hlY = [], hlNames = [], hlHover = [];
+  let count = 0;
   geneList.forEach(gene => {
     const idx = plotGenes.indexOf(gene);
-    if (idx >= 0) {
-      highlightedGenes.add(gene);
-      hlX.push(plotX[idx]); hlY.push(plotY[idx]);
-      hlNames.push(gene);
-      hlHover.push(`<b>${gene}</b><br>A: ${plotX[idx].toFixed(3)}  B: ${plotY[idx].toFixed(3)}`);
-    }
+    if (idx >= 0) { highlightedGenes.add(gene); count++; }
   });
-  // Remove old highlight traces
-  const pd = document.getElementById('plotDiv');
-  while (pd.data && pd.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
-  if (hlX.length > 0) {
-    // Stagger text positions to reduce overlap
-    const positions = ['top center', 'bottom center', 'top right', 'top left', 'bottom right', 'bottom left'];
-    const textPos = hlNames.map((_, i) => positions[i % positions.length]);
-    Plotly.addTraces('plotDiv', {
-      x: hlX, y: hlY,
-      mode: 'markers+text', type: 'scatter',
-      text: hlNames, textposition: textPos,
-      textfont: { family: 'JetBrains Mono', size: 9, color: '#facc15' },
-      hoverinfo: 'text', hovertext: hlHover,
-      marker: { color: 'rgba(250,204,21,0.25)', size: 8, symbol: 'diamond',
-                line: { width: 1.5, color: '#facc15' } },
-      showlegend: false, cliponaxis: false,
-    });
-  }
-  return hlX.length;
+  refreshAnnotations();
+  return count;
 }
 
 function clearHighlightOverlay() {
   highlightedGenes.clear();
-  const pd = document.getElementById('plotDiv');
-  if (pd.data && pd.data.length > 1) {
-    while (pd.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
-  }
+  refreshAnnotations();
 }
 
 // Manual highlight
@@ -1246,45 +1234,31 @@ async function fetchGOAnnotations(goId, goName) {
   const countEl = document.getElementById('goCount');
 
   loading.style.display = 'block';
-  loading.textContent = `Fetching proteins for ${goId}…`;
+  loading.textContent = `Querying UniProt for ${goId}…`;
   infoDiv.style.display = 'none';
   hlBtn.disabled = true;
   goGeneSet = [];
   countEl.textContent = '';
 
   try {
-    const symbols = new Set();
-    const uniprotIds = new Set();
-    let page = 1, totalHits = 0;
-    const maxPages = 15;
+    // Use UniProt REST API — stream all accessions for this GO term
+    const goNum = goId.replace('GO:', '');
+    const url = `https://rest.uniprot.org/uniprotkb/stream?query=(go:${goNum})&fields=accession&format=list`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`UniProt HTTP ${resp.status}`);
+    const text = await resp.text();
+    const goAccessions = new Set(text.trim().split('\n').filter(Boolean));
 
-    while (page <= maxPages) {
-      loading.textContent = `Fetching ${goId} — page ${page}…`;
-      const url = `https://www.ebi.ac.uk/QuickGO/services/annotation/search?goId=${encodeURIComponent(goId)}&limit=100&page=${page}&geneProductType=protein`;
-      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
+    loading.textContent = `Cross-referencing ${goAccessions.size.toLocaleString()} proteins with dataset…`;
 
-      if (page === 1) totalHits = data.numberOfHits || 0;
-      if (!data.results || !data.results.length) break;
-
-      data.results.forEach(ann => {
-        if (ann.symbol) symbols.add(ann.symbol.toUpperCase());
-        if (ann.geneProductId) {
-          const parts = ann.geneProductId.split(':');
-          if (parts.length >= 2) uniprotIds.add(parts[parts.length - 1]);
-        }
-      });
-
-      if (data.pageInfo && page >= data.pageInfo.total) break;
-      page++;
-    }
-
-    // Cross-reference with dataset
+    // Cross-reference with dataset by UniprotID (strip isoform suffix for matching)
     const matched = [];
     if (plotGenes.length > 0) {
       plotGenes.forEach((gene, i) => {
-        if (symbols.has(gene.toUpperCase()) || uniprotIds.has(plotUniprots[i])) {
+        const uid = plotUniprots[i];
+        if (!uid) return;
+        // Match full ID or canonical (strip -N isoform suffix)
+        if (goAccessions.has(uid) || goAccessions.has(uid.split('-')[0])) {
           matched.push(gene);
         }
       });
@@ -1293,16 +1267,15 @@ async function fetchGOAnnotations(goId, goName) {
     goGeneSet = matched;
     loading.style.display = 'none';
     infoDiv.style.display = 'block';
-    const scanned = Math.min(page * 100, totalHits);
-    const incomplete = totalHits > scanned ? ` (scanned ${scanned.toLocaleString()} of ${totalHits.toLocaleString()} annotations)` : '';
-    infoDiv.innerHTML = `<b>${goId}</b> — ${goName}<br>${symbols.size} unique gene symbols · ${uniprotIds.size} UniProt IDs${incomplete}<br>` +
-      `<b style="color:${matched.length ? '#34d399' : '#f472b6'}">${matched.length} matched</b> in your dataset`;
+    infoDiv.innerHTML = `<b>${goId}</b> — ${goName}<br>` +
+      `${goAccessions.size.toLocaleString()} UniProt proteins annotated with this GO term<br>` +
+      `<b style="color:${matched.length ? '#34d399' : '#f472b6'}">${matched.length} matched</b> in your dataset (by UniprotID)`;
     hlBtn.disabled = matched.length === 0;
     countEl.textContent = `${matched.length} in dataset`;
   } catch (err) {
     loading.style.display = 'none';
     infoDiv.style.display = 'block';
-    infoDiv.innerHTML = `<span style="color:#f472b6">Error fetching annotations: ${err.message}</span>`;
+    infoDiv.innerHTML = `<span style="color:#f472b6">Error: ${err.message}</span>`;
   }
 }
 
