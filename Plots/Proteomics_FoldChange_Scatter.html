@@ -136,7 +136,13 @@
   .geneset-toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.75rem; color: var(--text-dim); user-select: none; }
   .geneset-toggle:hover { color: var(--text); }
   .geneset-body { display: none; margin-top: 0.4rem; }
-  .geneset-body.open { display: flex; gap: 0.5rem; align-items: flex-start; }
+  .geneset-body.open { display: flex; flex-direction: column; gap: 0.5rem; }
+  .gs-tabs { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 2px; width: fit-content; }
+  .gs-tab { padding: 0.3rem 0.7rem; background: transparent; color: var(--text-dim); border: none; border-radius: 5px; font-family: 'DM Sans'; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .gs-tab.active { background: var(--accent); color: #fff; }
+  .gs-tab:hover:not(.active) { color: var(--text); }
+  .gs-panel { display: none; }
+  .gs-panel.active { display: flex; gap: 0.5rem; align-items: flex-start; }
   .geneset-textarea { flex: 1; min-height: 55px; max-height: 100px; padding: 0.45rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.72rem; resize: vertical; line-height: 1.5; }
   .geneset-textarea:focus { outline: none; border-color: var(--accent); }
   .geneset-textarea::placeholder { color: var(--text-dim); }
@@ -144,9 +150,34 @@
   .gs-btn { padding: 0.38rem 0.7rem; border-radius: 6px; font-family: 'DM Sans'; font-size: 0.72rem; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
   .gs-btn-hl { background: var(--accent); color: #fff; border: none; }
   .gs-btn-hl:hover { background: #3a7af0; }
+  .gs-btn-hl:disabled { opacity: 0.4; cursor: not-allowed; }
   .gs-btn-clr { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
   .gs-btn-clr:hover { border-color: #f472b6; color: #f472b6; }
   .gs-count { font-size: 0.68rem; color: var(--text-dim); font-family: 'JetBrains Mono'; text-align: center; min-width: 60px; }
+
+  /* GO Term Search */
+  .go-search-col { flex: 1; display: flex; flex-direction: column; gap: 0.4rem; }
+  .go-search-row { display: flex; gap: 0.4rem; }
+  .go-input { flex: 1; padding: 0.45rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.72rem; }
+  .go-input:focus { outline: none; border-color: var(--accent); }
+  .go-input::placeholder { color: var(--text-dim); }
+  .go-results { max-height: 200px; overflow-y: auto; border-radius: 7px; }
+  .go-results:empty { display: none; }
+  .go-results:not(:empty) { border: 1px solid var(--border); background: var(--bg); }
+  .go-item { padding: 0.4rem 0.6rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .go-item:last-child { border-bottom: none; }
+  .go-item:hover { background: rgba(79,140,255,0.12); }
+  .go-item.selected { background: rgba(79,140,255,0.18); border-left: 3px solid var(--accent); }
+  .go-item-name { color: var(--text-bright); font-weight: 500; flex: 1; }
+  .go-item-id { color: var(--text-dim); font-family: 'JetBrains Mono'; font-size: 0.66rem; white-space: nowrap; }
+  .go-aspect { padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.58rem; font-weight: 700; white-space: nowrap; }
+  .go-aspect-bp { background: rgba(52,211,153,0.15); color: #34d399; }
+  .go-aspect-mf { background: rgba(79,140,255,0.15); color: #4f8cff; }
+  .go-aspect-cc { background: rgba(250,204,21,0.15); color: #facc15; }
+  .go-info { font-size: 0.7rem; color: var(--text-dim); font-family: 'JetBrains Mono'; padding: 0.35rem 0.6rem; background: rgba(79,140,255,0.06); border: 1px solid var(--border); border-radius: 6px; line-height: 1.5; }
+  .go-info b { color: var(--text-bright); }
+  .go-loading { font-size: 0.72rem; color: var(--accent); font-style: italic; padding: 0.2rem 0; }
+  .go-msg { padding: 0.4rem 0.6rem; font-size: 0.72rem; color: var(--text-dim); }
 
   /* Bar plot container */
   .barplot-section { display: none; width: 100%; max-width: 920px; margin-top: 1rem; }
@@ -225,11 +256,33 @@
 <div class="geneset-bar" id="genesetBar">
   <div class="geneset-toggle" id="genesetToggle">&#9654; Gene Set Highlight</div>
   <div class="geneset-body" id="genesetBody">
-    <textarea class="geneset-textarea" id="genesetInput" placeholder="Paste gene names (one per line or comma-separated)…"></textarea>
-    <div class="geneset-actions">
-      <button class="gs-btn gs-btn-hl" id="genesetHighlight">Highlight</button>
-      <button class="gs-btn gs-btn-clr" id="genesetClear">Clear</button>
-      <span class="gs-count" id="genesetCount"></span>
+    <div class="gs-tabs">
+      <button class="gs-tab active" data-tab="manual">Manual</button>
+      <button class="gs-tab" data-tab="go">GO Term Search</button>
+    </div>
+    <div class="gs-panel active" id="gsManualPanel">
+      <textarea class="geneset-textarea" id="genesetInput" placeholder="Paste gene names (one per line or comma-separated)…"></textarea>
+      <div class="geneset-actions">
+        <button class="gs-btn gs-btn-hl" id="genesetHighlight">Highlight</button>
+        <button class="gs-btn gs-btn-clr" id="genesetClear">Clear</button>
+        <span class="gs-count" id="genesetCount"></span>
+      </div>
+    </div>
+    <div class="gs-panel" id="gsGOPanel">
+      <div class="go-search-col">
+        <div class="go-search-row">
+          <input type="text" class="go-input" id="goSearchInput" placeholder="Enter keyword (e.g. apoptosis, glycolysis, kinase)…" autocomplete="off">
+          <button class="gs-btn gs-btn-hl" id="goSearchBtn">Search GO</button>
+        </div>
+        <div class="go-results" id="goResults"></div>
+        <div class="go-loading" id="goLoading" style="display:none"></div>
+        <div class="go-info" id="goInfo" style="display:none"></div>
+      </div>
+      <div class="geneset-actions">
+        <button class="gs-btn gs-btn-hl" id="goHighlightBtn" disabled>Highlight</button>
+        <button class="gs-btn gs-btn-clr" id="goClearBtn">Clear</button>
+        <span class="gs-count" id="goCount"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -1071,48 +1124,193 @@ document.getElementById('genesetToggle').addEventListener('click', () => {
   toggle.innerHTML = (open ? '&#9660;' : '&#9654;') + ' Gene Set Highlight';
 });
 
-document.getElementById('genesetHighlight').addEventListener('click', () => {
-  const raw = document.getElementById('genesetInput').value;
-  const names = raw.split(/[\n,;\t]+/).map(s => s.trim()).filter(Boolean);
-  if (!names.length || !plotGenes.length) return;
+// Tab switching
+document.querySelectorAll('.gs-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.gs-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.getElementById('gsManualPanel').classList.toggle('active', tab.dataset.tab === 'manual');
+    document.getElementById('gsGOPanel').classList.toggle('active', tab.dataset.tab === 'go');
+  });
+});
 
+// Shared: apply highlight overlay to scatter plot
+function applyHighlightOverlay(geneList) {
   highlightedGenes.clear();
-  const nameSet = new Set(names.map(n => n.toUpperCase()));
   const hlX = [], hlY = [], hlText = [];
-  let found = 0;
-  plotGenes.forEach((g, i) => {
-    if (nameSet.has(g.toUpperCase())) {
-      highlightedGenes.add(g);
-      hlX.push(plotX[i]); hlY.push(plotY[i]);
-      hlText.push(`<b>${g}</b>`);
-      found++;
+  geneList.forEach(gene => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx >= 0) {
+      highlightedGenes.add(gene);
+      hlX.push(plotX[idx]); hlY.push(plotY[idx]);
+      hlText.push(`<b>${gene}</b>`);
     }
   });
-
-  document.getElementById('genesetCount').textContent = `${found}/${names.length} found`;
-
   if (hlX.length > 0) {
-    // Add highlight trace
-    const plotDiv = document.getElementById('plotDiv');
-    const currentData = plotDiv.data || [];
-    // Remove old highlight trace if exists
-    while (currentData.length > 1) Plotly.deleteTraces('plotDiv', -1);
+    const pd = document.getElementById('plotDiv');
+    while (pd.data && pd.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
     Plotly.addTraces('plotDiv', {
       x: hlX, y: hlY, mode: 'markers', type: 'scattergl', text: hlText, hoverinfo: 'text',
       marker: { color: 'rgba(0,0,0,0)', size: 14, line: { width: 2.5, color: '#facc15' } },
       showlegend: false,
     });
   }
+  return hlX.length;
+}
+
+function clearHighlightOverlay() {
+  highlightedGenes.clear();
+  const pd = document.getElementById('plotDiv');
+  if (pd.data && pd.data.length > 1) {
+    while (pd.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
+  }
+}
+
+// Manual highlight
+document.getElementById('genesetHighlight').addEventListener('click', () => {
+  const raw = document.getElementById('genesetInput').value;
+  const names = raw.split(/[\n,;\t]+/).map(s => s.trim()).filter(Boolean);
+  if (!names.length || !plotGenes.length) return;
+  const nameSet = new Set(names.map(n => n.toUpperCase()));
+  const matched = plotGenes.filter(g => nameSet.has(g.toUpperCase()));
+  const found = applyHighlightOverlay(matched);
+  document.getElementById('genesetCount').textContent = `${found}/${names.length} found`;
 });
 
 document.getElementById('genesetClear').addEventListener('click', () => {
-  highlightedGenes.clear();
+  clearHighlightOverlay();
   document.getElementById('genesetInput').value = '';
   document.getElementById('genesetCount').textContent = '';
-  const plotDiv = document.getElementById('plotDiv');
-  if (plotDiv.data && plotDiv.data.length > 1) {
-    while (plotDiv.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
+});
+
+/* ========== GO TERM SEARCH (QuickGO API) ========== */
+let goGeneSet = [];
+
+document.getElementById('goSearchBtn').addEventListener('click', searchGOTerms);
+document.getElementById('goSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchGOTerms(); });
+
+async function searchGOTerms() {
+  const keyword = document.getElementById('goSearchInput').value.trim();
+  if (!keyword) return;
+  const resultsDiv = document.getElementById('goResults');
+  const infoDiv = document.getElementById('goInfo');
+  infoDiv.style.display = 'none';
+  resultsDiv.innerHTML = '<div class="go-msg">Searching GO terms…</div>';
+
+  try {
+    const resp = await fetch(
+      `https://www.ebi.ac.uk/QuickGO/services/ontology/go/search?query=${encodeURIComponent(keyword)}&limit=20`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    resultsDiv.innerHTML = '';
+
+    if (!data.results || !data.results.length) {
+      resultsDiv.innerHTML = '<div class="go-msg">No GO terms found for this keyword</div>';
+      return;
+    }
+
+    const aspectMap = { biological_process: ['BP', 'go-aspect-bp'], molecular_function: ['MF', 'go-aspect-mf'], cellular_component: ['CC', 'go-aspect-cc'] };
+    data.results.forEach(term => {
+      if (term.isObsolete) return;
+      const [tag, cls] = aspectMap[term.aspect] || ['?', ''];
+      const div = document.createElement('div');
+      div.className = 'go-item';
+      div.innerHTML = `<span class="go-aspect ${cls}">${tag}</span><span class="go-item-name">${term.name}</span><span class="go-item-id">${term.id}</span>`;
+      div.addEventListener('click', () => {
+        document.querySelectorAll('.go-item').forEach(el => el.classList.remove('selected'));
+        div.classList.add('selected');
+        fetchGOAnnotations(term.id, term.name);
+      });
+      resultsDiv.appendChild(div);
+    });
+  } catch (err) {
+    resultsDiv.innerHTML = `<div class="go-msg" style="color:#f472b6">Error: ${err.message}</div>`;
   }
+}
+
+async function fetchGOAnnotations(goId, goName) {
+  const loading = document.getElementById('goLoading');
+  const infoDiv = document.getElementById('goInfo');
+  const hlBtn = document.getElementById('goHighlightBtn');
+  const countEl = document.getElementById('goCount');
+
+  loading.style.display = 'block';
+  loading.textContent = `Fetching proteins for ${goId}…`;
+  infoDiv.style.display = 'none';
+  hlBtn.disabled = true;
+  goGeneSet = [];
+  countEl.textContent = '';
+
+  try {
+    const symbols = new Set();
+    const uniprotIds = new Set();
+    let page = 1, totalHits = 0;
+    const maxPages = 15;
+
+    while (page <= maxPages) {
+      loading.textContent = `Fetching ${goId} — page ${page}…`;
+      const url = `https://www.ebi.ac.uk/QuickGO/services/annotation/search?goId=${encodeURIComponent(goId)}&limit=100&page=${page}&geneProductType=protein`;
+      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      if (page === 1) totalHits = data.numberOfHits || 0;
+      if (!data.results || !data.results.length) break;
+
+      data.results.forEach(ann => {
+        if (ann.symbol) symbols.add(ann.symbol.toUpperCase());
+        if (ann.geneProductId) {
+          const parts = ann.geneProductId.split(':');
+          if (parts.length >= 2) uniprotIds.add(parts[parts.length - 1]);
+        }
+      });
+
+      if (data.pageInfo && page >= data.pageInfo.total) break;
+      page++;
+    }
+
+    // Cross-reference with dataset
+    const matched = [];
+    if (plotGenes.length > 0) {
+      plotGenes.forEach((gene, i) => {
+        if (symbols.has(gene.toUpperCase()) || uniprotIds.has(plotUniprots[i])) {
+          matched.push(gene);
+        }
+      });
+    }
+
+    goGeneSet = matched;
+    loading.style.display = 'none';
+    infoDiv.style.display = 'block';
+    const scanned = Math.min(page * 100, totalHits);
+    const incomplete = totalHits > scanned ? ` (scanned ${scanned.toLocaleString()} of ${totalHits.toLocaleString()} annotations)` : '';
+    infoDiv.innerHTML = `<b>${goId}</b> — ${goName}<br>${symbols.size} unique gene symbols · ${uniprotIds.size} UniProt IDs${incomplete}<br>` +
+      `<b style="color:${matched.length ? '#34d399' : '#f472b6'}">${matched.length} matched</b> in your dataset`;
+    hlBtn.disabled = matched.length === 0;
+    countEl.textContent = `${matched.length} in dataset`;
+  } catch (err) {
+    loading.style.display = 'none';
+    infoDiv.style.display = 'block';
+    infoDiv.innerHTML = `<span style="color:#f472b6">Error fetching annotations: ${err.message}</span>`;
+  }
+}
+
+document.getElementById('goHighlightBtn').addEventListener('click', () => {
+  if (!goGeneSet.length || !plotGenes.length) return;
+  const found = applyHighlightOverlay(goGeneSet);
+  document.getElementById('goCount').textContent = `${found} highlighted`;
+});
+
+document.getElementById('goClearBtn').addEventListener('click', () => {
+  goGeneSet = [];
+  clearHighlightOverlay();
+  document.getElementById('goResults').innerHTML = '';
+  document.getElementById('goInfo').style.display = 'none';
+  document.getElementById('goLoading').style.display = 'none';
+  document.getElementById('goCount').textContent = '';
+  document.getElementById('goHighlightBtn').disabled = true;
+  document.getElementById('goSearchInput').value = '';
 });
 
 /* ========== SCREENSHOT / EXPORT ========== */
