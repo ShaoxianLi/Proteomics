@@ -1136,22 +1136,32 @@ document.querySelectorAll('.gs-tab').forEach(tab => {
 // Shared: apply highlight overlay to scatter plot
 function applyHighlightOverlay(geneList) {
   highlightedGenes.clear();
-  const hlX = [], hlY = [], hlText = [];
+  const hlX = [], hlY = [], hlNames = [], hlHover = [];
   geneList.forEach(gene => {
     const idx = plotGenes.indexOf(gene);
     if (idx >= 0) {
       highlightedGenes.add(gene);
       hlX.push(plotX[idx]); hlY.push(plotY[idx]);
-      hlText.push(`<b>${gene}</b>`);
+      hlNames.push(gene);
+      hlHover.push(`<b>${gene}</b><br>A: ${plotX[idx].toFixed(3)}  B: ${plotY[idx].toFixed(3)}`);
     }
   });
+  // Remove old highlight traces
+  const pd = document.getElementById('plotDiv');
+  while (pd.data && pd.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
   if (hlX.length > 0) {
-    const pd = document.getElementById('plotDiv');
-    while (pd.data && pd.data.length > 1) Plotly.deleteTraces('plotDiv', -1);
+    // Stagger text positions to reduce overlap
+    const positions = ['top center', 'bottom center', 'top right', 'top left', 'bottom right', 'bottom left'];
+    const textPos = hlNames.map((_, i) => positions[i % positions.length]);
     Plotly.addTraces('plotDiv', {
-      x: hlX, y: hlY, mode: 'markers', type: 'scattergl', text: hlText, hoverinfo: 'text',
-      marker: { color: 'rgba(0,0,0,0)', size: 14, line: { width: 2.5, color: '#facc15' } },
-      showlegend: false,
+      x: hlX, y: hlY,
+      mode: 'markers+text', type: 'scatter',
+      text: hlNames, textposition: textPos,
+      textfont: { family: 'JetBrains Mono', size: 9, color: '#facc15' },
+      hoverinfo: 'text', hovertext: hlHover,
+      marker: { color: 'rgba(250,204,21,0.25)', size: 8, symbol: 'diamond',
+                line: { width: 1.5, color: '#facc15' } },
+      showlegend: false, cliponaxis: false,
     });
   }
   return hlX.length;
