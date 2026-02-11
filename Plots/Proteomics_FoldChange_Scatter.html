@@ -66,6 +66,7 @@
   .threshold-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
   .threshold-input { width: 65px; padding: 0.4rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.82rem; text-align: center; }
   .threshold-note { font-size: 0.7rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+  .pval-group { border-left: 1px solid var(--border); padding-left: 1rem; }
   .run-btn { padding: 0.5rem 1.6rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-family: 'DM Sans'; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
   .run-btn:hover { background: #3a7af0; transform: translateY(-1px); }
   .run-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
@@ -234,6 +235,11 @@
     <input type="number" class="threshold-input" id="threshold" value="1.25" step="0.05" min="1">
     <span class="threshold-note" id="threshNote">= ±0.322 log₂</span>
   </div>
+  <div class="threshold-group pval-group" id="pvalGroup" style="display:none">
+    <label>p-value</label>
+    <input type="number" class="threshold-input" id="pvalThreshold" value="0.05" step="0.005" min="0.001" max="1">
+    <span class="threshold-note" id="pvalNote">-log₁₀ = 1.301</span>
+  </div>
   <button class="run-btn" id="runBtn" disabled>Plot</button>
   <button class="export-btn" id="exportBtn">⬇ Export CSV</button>
   <div class="mode-toggle" id="modeToggle">
@@ -390,6 +396,8 @@ const PROTEIN_COLORS = [
 document.getElementById('threshold').addEventListener('input', e => {
   const v = parseFloat(e.target.value);
   if (v > 0) document.getElementById('threshNote').textContent = `= ±${Math.log2(v).toFixed(3)} log₂`;
+  if (currentMode === 'volcanoA') buildVolcano(volcanoDataA, 'A', currentCtrA, currentTrtA);
+  else if (currentMode === 'volcanoB') buildVolcano(volcanoDataB, 'B', currentCtrB, currentTrtB);
 });
 
 /* ========== STATISTICS ========== */
@@ -1023,7 +1031,8 @@ function buildVolcano(volcData, label, ctrName, trtName) {
   if (!volcData) return;
   const threshold = parseFloat(document.getElementById('threshold').value) || 1.25;
   const log2Thresh = Math.log2(threshold);
-  const pThresh = -Math.log10(0.05);
+  const pCutoff = parseFloat(document.getElementById('pvalThreshold').value) || 0.05;
+  const pThresh = -Math.log10(pCutoff);
 
   const x = [], y = [], text = [], colors = [], sizes = [];
   volcData.forEach(d => {
@@ -1085,14 +1094,25 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
       document.getElementById('plotDiv').style.display = 'block';
       document.getElementById('volcanoContainer').style.display = 'none';
       document.getElementById('legendBar').style.display = 'flex';
+      document.getElementById('pvalGroup').style.display = 'none';
     } else {
       document.getElementById('plotDiv').style.display = 'none';
       document.getElementById('volcanoContainer').style.display = 'block';
       document.getElementById('legendBar').style.display = 'none';
+      document.getElementById('pvalGroup').style.display = 'flex';
       if (mode === 'volcanoA') buildVolcano(volcanoDataA, 'A', currentCtrA, currentTrtA);
       else buildVolcano(volcanoDataB, 'B', currentCtrB, currentTrtB);
     }
   });
+});
+
+// p-value threshold: update note & rebuild volcano on change
+document.getElementById('pvalThreshold').addEventListener('input', () => {
+  const val = parseFloat(document.getElementById('pvalThreshold').value);
+  if (!val || val <= 0 || val >= 1) return;
+  document.getElementById('pvalNote').textContent = `-log₁₀ = ${(-Math.log10(val)).toFixed(3)}`;
+  if (currentMode === 'volcanoA') buildVolcano(volcanoDataA, 'A', currentCtrA, currentTrtA);
+  else if (currentMode === 'volcanoB') buildVolcano(volcanoDataB, 'B', currentCtrB, currentTrtB);
 });
 
 /* ========== QUADRANT FILTER ========== */
