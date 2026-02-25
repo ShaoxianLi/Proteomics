@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # ==============================================================================
-# Bar Plot - Fluorescence Intensity (Duplicates with Error Bars)
+# Bar Plot - Labeled Peptide Counts (Duplicates with Error Bars)
 # Phenol vs Azide distinguished by bar border linetype (solid vs dashed)
 # FITC, EY, FCPP, ECPP distinguished by fill color
 # ==============================================================================
@@ -87,9 +87,9 @@ p <- ggplot(plot_data, aes(x = Dye, y = Mean, fill = Dye, linetype = Condition))
   ) +
   labs(
     x     = "",
-    y     = "Fluorescence Intensity (a.u.)",
+    y     = "Labeled Peptide Counts",
     fill  = "Dye",
-    title = "Fluorescence Intensity by Dye and Condition"
+    title = "Labeled Peptide Counts by Dye and Condition"
   ) +
   theme_classic(base_size = 14) +
   theme(
