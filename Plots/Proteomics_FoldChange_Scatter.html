@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proteomics Fold Change Scatter</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0c0f1a;
+    --surface: #141825;
+    --border: #1e2438;
+    --border-hi: #2a3050;
+    --text: #c8cdd8;
+    --text-dim: #6b7280;
+    --text-bright: #e8ecf4;
+    --accent: #4f8cff;
+    --up: #34d399;
+    --down: #f472b6;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.5rem 1rem;
+  }
+
+  .header { text-align: center; margin-bottom: 1.2rem; max-width: 860px; }
+  .header h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-bright); letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+  .header p { font-size: 0.82rem; color: var(--text-dim); line-height: 1.5; }
+
+  .panel-row { display: flex; gap: 1rem; width: 100%; max-width: 920px; margin-bottom: 1rem; flex-wrap: wrap; justify-content: center; }
+  .panel { flex: 1; min-width: 300px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1rem 1.2rem; }
+  .panel-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 600; margin-bottom: 0.7rem; display: flex; align-items: center; gap: 0.5rem; }
+  .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.68rem; font-weight: 700; }
+  .badge-a { background: rgba(79,140,255,0.15); color: var(--accent); }
+  .badge-b { background: rgba(250,204,21,0.15); color: #facc15; }
+
+  .file-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; }
+  .file-btn { padding: 0.45rem 0.9rem; background: var(--border); color: var(--text); border: 1px solid var(--border-hi); border-radius: 7px; font-family: 'DM Sans'; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .file-btn:hover { border-color: var(--accent); }
+  .file-btn.loaded { border-color: var(--up); color: var(--up); }
+  .file-btn input { display: none; }
+  .file-name { font-family: 'JetBrains Mono'; font-size: 0.72rem; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+
+  .group-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+  .group-row label { font-size: 0.75rem; color: var(--text-dim); min-width: 68px; font-weight: 500; }
+  select { flex: 1; padding: 0.4rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.78rem; cursor: pointer; }
+  select:focus { outline: none; border-color: var(--accent); }
+
+  .check-row { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-dim); }
+  .check-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+
+  .debug-info { font-family: 'JetBrains Mono'; font-size: 0.68rem; color: var(--text-dim); margin-top: 0.5rem; padding: 0.4rem 0.6rem; background: rgba(0,0,0,0.3); border-radius: 5px; max-height: 60px; overflow-y: auto; display: none; word-break: break-all; }
+
+  .controls-bar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 1rem; }
+  .threshold-group { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
+  .threshold-input { width: 65px; padding: 0.4rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.82rem; text-align: center; }
+  .threshold-note { font-size: 0.7rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+  .pval-group { border-left: 1px solid var(--border); padding-left: 1rem; }
+  .run-btn { padding: 0.5rem 1.6rem; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-family: 'DM Sans'; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+  .run-btn:hover { background: #3a7af0; transform: translateY(-1px); }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .export-btn { padding: 0.5rem 1rem; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans'; font-size: 0.8rem; cursor: pointer; transition: all 0.2s; display: none; }
+  .export-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Mode toggle */
+  .mode-toggle { display: none; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 2px; }
+  .mode-btn { padding: 0.3rem 0.6rem; background: transparent; color: var(--text-dim); border: none; border-radius: 5px; font-family: 'DM Sans'; font-size: 0.73rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .mode-btn.active { background: var(--accent); color: #fff; }
+  .mode-btn:hover:not(.active) { color: var(--text); }
+
+  /* Screenshot */
+  .ss-btns { display: none; gap: 0.3rem; }
+  .ss-btn { padding: 0.35rem 0.6rem; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 6px; font-family: 'DM Sans'; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; }
+  .ss-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  #plot-container { width: 100%; max-width: 920px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; min-height: 600px; position: relative; }
+  .placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.88rem; gap: 0.5rem; }
+  .placeholder svg { opacity: 0.25; }
+  .volcano-container { display: none; width: 100%; height: 620px; }
+
+  .legend-bar { display: none; gap: 0.8rem; justify-content: center; margin-top: 0.8rem; font-size: 0.75rem; flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 0.35rem; color: var(--text-dim); cursor: pointer; padding: 0.15rem 0.45rem; border-radius: 5px; border: 1px solid transparent; transition: all 0.15s; user-select: none; }
+  .legend-item:hover { border-color: var(--border-hi); background: rgba(255,255,255,0.03); }
+  .legend-item.active-filter { border-color: var(--accent); background: rgba(79,140,255,0.1); color: var(--text-bright); }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .filter-export-btn { display: none; padding: 0.2rem 0.6rem; background: transparent; color: var(--accent); border: 1px solid rgba(79,140,255,0.3); border-radius: 5px; font-family: 'DM Sans'; font-size: 0.68rem; cursor: pointer; }
+  .filter-export-btn:hover { background: rgba(79,140,255,0.1); }
+
+  .stats-bar { display: none; gap: 1.5rem; justify-content: center; margin-top: 0.6rem; font-family: 'JetBrains Mono'; font-size: 0.75rem; color: var(--text-dim); flex-wrap: wrap; }
+  .stats-bar span { color: var(--text-bright); font-weight: 600; }
+  .corr-stats { display: none; gap: 1.5rem; justify-content: center; margin-top: 0.25rem; font-family: 'JetBrains Mono'; font-size: 0.72rem; color: var(--text-dim); }
+  .corr-stats b { color: var(--text-bright); font-weight: 600; }
+  .axis-labels { display: none; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-size: 0.72rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+
+  /* Pinned proteins panel */
+  .pinned-panel { display: none; width: 100%; max-width: 920px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem 1rem; margin-top: 0.8rem; }
+  .pinned-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+  .pinned-header h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; }
+  .clear-pins-btn { padding: 0.25rem 0.6rem; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 5px; font-family: 'DM Sans'; font-size: 0.7rem; cursor: pointer; transition: all 0.2s; }
+  .clear-pins-btn:hover { border-color: #f472b6; color: #f472b6; }
+  .pinned-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .pinned-chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.7rem; background: rgba(79,140,255,0.1); border: 1px solid rgba(79,140,255,0.25); border-radius: 7px; font-size: 0.75rem; color: var(--text-bright); transition: all 0.2s; }
+  .pinned-chip .gene-name { font-weight: 600; font-family: 'JetBrains Mono'; }
+  .pinned-chip .fc-info { font-size: 0.68rem; color: var(--text-dim); font-family: 'JetBrains Mono'; }
+  .pinned-chip a { color: var(--accent); text-decoration: none; font-size: 0.7rem; font-weight: 600; padding: 0.1rem 0.35rem; border-radius: 3px; background: rgba(79,140,255,0.12); transition: all 0.2s; }
+  .pinned-chip a:hover { background: rgba(79,140,255,0.3); text-decoration: underline; }
+  .pinned-chip .remove-pin { color: var(--text-dim); cursor: pointer; font-size: 0.8rem; margin-left: 0.2rem; transition: color 0.2s; }
+  .pinned-chip .remove-pin:hover { color: #f472b6; }
+  .click-hint { display: none; text-align: center; font-size: 0.7rem; color: var(--text-dim); margin-top: 0.4rem; font-style: italic; }
+
+  /* Search bar */
+  .search-bar { display: none; width: 100%; max-width: 920px; margin-bottom: 0.6rem; position: relative; }
+  .search-bar input { width: 100%; padding: 0.55rem 0.9rem 0.55rem 2.2rem; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; color: var(--text-bright); font-family: 'JetBrains Mono'; font-size: 0.82rem; transition: border-color 0.2s; }
+  .search-bar input:focus { outline: none; border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--text-dim); }
+  .search-icon { position: absolute; left: 0.7rem; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 0.9rem; pointer-events: none; }
+  .search-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border-hi); border-radius: 0 0 9px 9px; max-height: 200px; overflow-y: auto; z-index: 100; display: none; }
+  .search-suggestions .sug-item { padding: 0.4rem 0.9rem; font-size: 0.78rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono'; }
+  .search-suggestions .sug-item:hover { background: rgba(79,140,255,0.12); }
+  .search-suggestions .sug-item .sug-gene { color: var(--text-bright); font-weight: 600; }
+  .search-suggestions .sug-item .sug-id { color: var(--text-dim); font-size: 0.7rem; }
+  .search-suggestions .sug-item .sug-fc { color: var(--text-dim); font-size: 0.68rem; }
+
+  /* Gene set highlight */
+  .geneset-bar { display: none; width: 100%; max-width: 920px; margin-bottom: 0.8rem; }
+  .geneset-toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.75rem; color: var(--text-dim); user-select: none; }
+  .geneset-toggle:hover { color: var(--text); }
+  .geneset-body { display: none; margin-top: 0.4rem; }
+  .geneset-body.open { display: flex; flex-direction: column; gap: 0.5rem; }
+  .gs-tabs { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 2px; width: fit-content; }
+  .gs-tab { padding: 0.3rem 0.7rem; background: transparent; color: var(--text-dim); border: none; border-radius: 5px; font-family: 'DM Sans'; font-size: 0.72rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .gs-tab.active { background: var(--accent); color: #fff; }
+  .gs-tab:hover:not(.active) { color: var(--text); }
+  .gs-panel { display: none; }
+  .gs-panel.active { display: flex; gap: 0.5rem; align-items: flex-start; }
+  .geneset-textarea { flex: 1; min-height: 55px; max-height: 100px; padding: 0.45rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.72rem; resize: vertical; line-height: 1.5; }
+  .geneset-textarea:focus { outline: none; border-color: var(--accent); }
+  .geneset-textarea::placeholder { color: var(--text-dim); }
+  .geneset-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+  .gs-btn { padding: 0.38rem 0.7rem; border-radius: 6px; font-family: 'DM Sans'; font-size: 0.72rem; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+  .gs-btn-hl { background: var(--accent); color: #fff; border: none; }
+  .gs-btn-hl:hover { background: #3a7af0; }
+  .gs-btn-hl:disabled { opacity: 0.4; cursor: not-allowed; }
+  .gs-btn-clr { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .gs-btn-clr:hover { border-color: #f472b6; color: #f472b6; }
+  .gs-count { font-size: 0.68rem; color: var(--text-dim); font-family: 'JetBrains Mono'; text-align: center; min-width: 60px; }
+
+  /* GO Term Search */
+  .go-search-col { flex: 1; display: flex; flex-direction: column; gap: 0.4rem; }
+  .go-search-row { display: flex; gap: 0.4rem; }
+  .go-input { flex: 1; padding: 0.45rem 0.6rem; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font-family: 'JetBrains Mono'; font-size: 0.72rem; }
+  .go-input:focus { outline: none; border-color: var(--accent); }
+  .go-input::placeholder { color: var(--text-dim); }
+  .go-results { max-height: 200px; overflow-y: auto; border-radius: 7px; }
+  .go-results:empty { display: none; }
+  .go-results:not(:empty) { border: 1px solid var(--border); background: var(--bg); }
+  .go-item { padding: 0.4rem 0.6rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; border-bottom: 1px solid var(--border); transition: background 0.15s; }
+  .go-item:last-child { border-bottom: none; }
+  .go-item:hover { background: rgba(79,140,255,0.12); }
+  .go-item.selected { background: rgba(79,140,255,0.18); border-left: 3px solid var(--accent); }
+  .go-item-name { color: var(--text-bright); font-weight: 500; flex: 1; }
+  .go-item-id { color: var(--text-dim); font-family: 'JetBrains Mono'; font-size: 0.66rem; white-space: nowrap; }
+  .go-aspect { padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.58rem; font-weight: 700; white-space: nowrap; }
+  .go-aspect-bp { background: rgba(52,211,153,0.15); color: #34d399; }
+  .go-aspect-mf { background: rgba(79,140,255,0.15); color: #4f8cff; }
+  .go-aspect-cc { background: rgba(250,204,21,0.15); color: #facc15; }
+  .go-info { font-size: 0.7rem; color: var(--text-dim); font-family: 'JetBrains Mono'; padding: 0.35rem 0.6rem; background: rgba(79,140,255,0.06); border: 1px solid var(--border); border-radius: 6px; line-height: 1.5; }
+  .go-info b { color: var(--text-bright); }
+  .go-loading { font-size: 0.72rem; color: var(--accent); font-style: italic; padding: 0.2rem 0; }
+  .go-msg { padding: 0.4rem 0.6rem; font-size: 0.72rem; color: var(--text-dim); }
+
+  /* Bar plot container */
+  .barplot-section { display: none; width: 100%; max-width: 920px; margin-top: 1rem; }
+  .barplot-title { font-size: 0.82rem; font-weight: 600; color: var(--text-bright); text-align: center; margin-bottom: 0.5rem; font-family: 'JetBrains Mono'; }
+  .barplot-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .barplot-panel { flex: 1; min-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem; }
+  .barplot-panel-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; margin-bottom: 0.3rem; text-align: center; }
+
+  /* Bar comparison */
+  .bar-compare { display: none; width: 100%; max-width: 920px; margin-top: 0.8rem; }
+  .bar-compare-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; margin-bottom: 0.5rem; text-align: center; }
+
+  /* Heatmap */
+  .heatmap-section { display: none; width: 100%; max-width: 920px; margin-top: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.8rem; }
+  .heatmap-header { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; margin-bottom: 0.4rem; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Proteomics log₂(FC) Scatter</h1>
+  <p>Compare treatment/control fold changes across two datasets. Axes show log₂(FC) — origin = 0 (no change), positive = up, negative = down.</p>
+</div>
+
+<div class="panel-row">
+  <div class="panel">
+    <div class="panel-title"><span class="badge badge-a">A</span> Dataset A → X-axis</div>
+    <div class="file-row">
+      <label class="file-btn" id="labelA">Upload CSV…<input type="file" id="fileA" accept=".csv,.tsv,.txt"></label>
+      <span class="file-name" id="fnameA">no file</span>
+    </div>
+    <div class="group-row"><label>Control</label><select id="ctrA" disabled><option>— upload file —</option></select></div>
+    <div class="group-row"><label>Treatment</label><select id="trtA" disabled><option>— upload file —</option></select></div>
+    <div class="check-row"><input type="checkbox" id="logA"> <label for="logA">Data is log₂-transformed</label></div>
+    <div class="debug-info" id="debugA"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><span class="badge badge-b">B</span> Dataset B → Y-axis</div>
+    <div class="file-row">
+      <label class="file-btn" id="labelB">Upload CSV…<input type="file" id="fileB" accept=".csv,.tsv,.txt"></label>
+      <span class="file-name" id="fnameB">no file</span>
+    </div>
+    <div class="group-row"><label>Control</label><select id="ctrB" disabled><option>— upload file —</option></select></div>
+    <div class="group-row"><label>Treatment</label><select id="trtB" disabled><option>— upload file —</option></select></div>
+    <div class="check-row"><input type="checkbox" id="logB"> <label for="logB">Data is log₂-transformed</label></div>
+    <div class="debug-info" id="debugB"></div>
+  </div>
+</div>
+
+<div class="controls-bar">
+  <div class="threshold-group">
+    <label>FC Threshold</label>
+    <input type="number" class="threshold-input" id="threshold" value="1.25" step="0.05" min="1">
+    <span class="threshold-note" id="threshNote">= ±0.322 log₂</span>
+  </div>
+  <div class="threshold-group pval-group" id="pvalGroup" style="display:none">
+    <label>p-value</label>
+    <input type="number" class="threshold-input" id="pvalThreshold" value="0.05" step="0.005" min="0.001" max="1">
+    <span class="threshold-note" id="pvalNote">-log₁₀ = 1.301</span>
+  </div>
+  <button class="run-btn" id="runBtn" disabled>Plot</button>
+  <button class="export-btn" id="exportBtn">⬇ Export CSV</button>
+  <div class="mode-toggle" id="modeToggle">
+    <button class="mode-btn active" data-mode="scatter">Scatter</button>
+    <button class="mode-btn" data-mode="volcanoA">Volcano A</button>
+    <button class="mode-btn" data-mode="volcanoB">Volcano B</button>
+  </div>
+  <div class="ss-btns" id="ssBtns">
+    <button class="ss-btn" id="ssPNG">PNG</button>
+    <button class="ss-btn" id="ssSVG">SVG</button>
+  </div>
+</div>
+
+<div class="search-bar" id="searchBar">
+  <span class="search-icon">&#128270;</span>
+  <input type="text" id="searchInput" placeholder="Search protein (gene symbol or UniProt ID)…" autocomplete="off">
+  <div class="search-suggestions" id="searchSuggestions"></div>
+</div>
+
+<div class="geneset-bar" id="genesetBar">
+  <div class="geneset-toggle" id="genesetToggle">&#9654; Gene Set Highlight</div>
+  <div class="geneset-body" id="genesetBody">
+    <div class="gs-tabs">
+      <button class="gs-tab active" data-tab="manual">Manual</button>
+      <button class="gs-tab" data-tab="go">GO Term Search</button>
+    </div>
+    <div class="gs-panel active" id="gsManualPanel">
+      <textarea class="geneset-textarea" id="genesetInput" placeholder="Paste gene names (one per line or comma-separated)…"></textarea>
+      <div class="geneset-actions">
+        <button class="gs-btn gs-btn-hl" id="genesetHighlight">Highlight</button>
+        <button class="gs-btn gs-btn-clr" id="genesetClear">Clear</button>
+        <span class="gs-count" id="genesetCount"></span>
+      </div>
+    </div>
+    <div class="gs-panel" id="gsGOPanel">
+      <div class="go-search-col">
+        <div class="go-search-row">
+          <input type="text" class="go-input" id="goSearchInput" placeholder="Enter keyword (e.g. apoptosis, glycolysis, kinase)…" autocomplete="off">
+          <button class="gs-btn gs-btn-hl" id="goSearchBtn">Search GO</button>
+        </div>
+        <div class="go-results" id="goResults"></div>
+        <div class="go-loading" id="goLoading" style="display:none"></div>
+        <div class="go-info" id="goInfo" style="display:none"></div>
+      </div>
+      <div class="geneset-actions">
+        <button class="gs-btn gs-btn-hl" id="goHighlightBtn" disabled>Highlight</button>
+        <button class="gs-btn gs-btn-clr" id="goClearBtn">Clear</button>
+        <span class="gs-count" id="goCount"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="plot-container">
+  <div class="placeholder" id="placeholder">
+    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M8 12l2 2 4-4"/></svg>
+    Upload both CSVs, select groups, then click <strong>Plot</strong>
+  </div>
+  <div id="plotDiv" style="width:100%;height:620px;"></div>
+  <div class="volcano-container" id="volcanoContainer">
+    <div id="volcanoDiv" style="width:100%;height:620px;"></div>
+  </div>
+</div>
+
+<div class="legend-bar" id="legendBar">
+  <div class="legend-item" data-cat="neutral"><div class="legend-dot" style="background:#475569;"></div> Below threshold</div>
+  <div class="legend-item" data-cat="up_both"><div class="legend-dot" style="background:#34d399;"></div> Up in both</div>
+  <div class="legend-item" data-cat="down_both"><div class="legend-dot" style="background:#f472b6;"></div> Down in both</div>
+  <div class="legend-item" data-cat="up_A_down_B"><div class="legend-dot" style="background:#facc15;"></div> Up A / Down B</div>
+  <div class="legend-item" data-cat="down_A_up_B"><div class="legend-dot" style="background:#818cf8;"></div> Down A / Up B</div>
+  <div class="legend-item" data-cat="one_axis"><div class="legend-dot" style="background:#4f8cff;"></div> Sig. in one axis</div>
+  <button class="filter-export-btn" id="filterExportBtn">Export Filtered</button>
+</div>
+<div class="stats-bar" id="statsBar"></div>
+<div class="corr-stats" id="corrStats"></div>
+<div class="axis-labels" id="axisLabels"></div>
+<div class="click-hint" id="clickHint">Click any point to pin its label · Click legend to filter by category · Use Gene Set Highlight to batch-mark proteins</div>
+
+<div class="pinned-panel" id="pinnedPanel">
+  <div class="pinned-header">
+    <h3>Pinned Proteins</h3>
+    <button class="clear-pins-btn" id="clearPinsBtn">Clear All</button>
+  </div>
+  <div class="pinned-list" id="pinnedList"></div>
+</div>
+
+<div class="barplot-section" id="barplotSection">
+  <div class="barplot-title" id="barplotTitle"></div>
+  <div class="barplot-row">
+    <div class="barplot-panel">
+      <div class="barplot-panel-label">Dataset A</div>
+      <div id="barPlotA" style="width:100%;height:320px;"></div>
+    </div>
+    <div class="barplot-panel">
+      <div class="barplot-panel-label">Dataset B</div>
+      <div id="barPlotB" style="width:100%;height:320px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="bar-compare" id="barCompare">
+  <div class="bar-compare-title">Pinned Proteins Comparison (Group Means ± SEM)</div>
+  <div class="barplot-row">
+    <div class="barplot-panel">
+      <div class="barplot-panel-label">Dataset A</div>
+      <div id="barCompareA" style="width:100%;height:320px;"></div>
+    </div>
+    <div class="barplot-panel">
+      <div class="barplot-panel-label">Dataset B</div>
+      <div id="barCompareB" style="width:100%;height:320px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="heatmap-section" id="heatmapSection">
+  <div class="heatmap-header">Expression Heatmap — Pinned Proteins (all channels)</div>
+  <div id="heatmapDiv" style="width:100%;min-height:200px;"></div>
+</div>
+
+<script>
+let dataA = null, dataB = null;
+let groupsA = {}, groupsB = {};
+let lastPlotData = null;
+
+// Global arrays for click handler — filled during buildPlot
+let plotGenes = [];
+let plotUniprots = [];
+let plotX = [], plotY = [];
+let plotColors = [], plotSizes = [];
+let plotCategories = [];
+let pinnedSet = new Set();
+
+// Current selections
+let currentCtrA = '', currentTrtA = '', currentCtrB = '', currentTrtB = '';
+let currentIsLogA = false, currentIsLogB = false;
+
+// Feature state
+let currentMode = 'scatter';
+let volcanoDataA = null, volcanoDataB = null;
+let activeFilter = null;
+let highlightedGenes = new Set();
+let lastClickedGene = null;
+
+const GROUP_COLORS = [
+  '#4f8cff', '#34d399', '#f472b6', '#facc15', '#818cf8',
+  '#fb923c', '#22d3ee', '#a3e635', '#e879f9', '#f87171'
+];
+const PROTEIN_COLORS = [
+  '#4f8cff', '#f472b6', '#34d399', '#facc15', '#818cf8',
+  '#fb923c', '#22d3ee', '#e879f9', '#a3e635', '#f87171'
+];
+
+// Update threshold note
+document.getElementById('threshold').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (v > 0) document.getElementById('threshNote').textContent = `= ±${Math.log2(v).toFixed(3)} log₂`;
+  if (currentMode === 'volcanoA') buildVolcano(volcanoDataA, 'A', currentCtrA, currentTrtA);
+  else if (currentMode === 'volcanoB') buildVolcano(volcanoDataB, 'B', currentCtrB, currentTrtB);
+});
+
+/* ========== STATISTICS ========== */
+function variance(arr) {
+  const n = arr.length;
+  if (n < 2) return 0;
+  const m = arr.reduce((a, b) => a + b, 0) / n;
+  return arr.reduce((s, v) => s + (v - m) * (v - m), 0) / (n - 1);
+}
+
+function sem(arr) {
+  return Math.sqrt(variance(arr) / arr.length);
+}
+
+function lnGamma(x) {
+  const cof = [76.18009172947146, -86.50532032941678, 24.01409824083091,
+    -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let y = x, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) ser += cof[j] / ++y;
+  return -tmp + Math.log(2.5066282746310005 * ser / x);
+}
+
+function betaCF(x, a, b) {
+  const maxIter = 200, eps = 1e-14;
+  let qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - qab * x / qap;
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= maxIter; m++) {
+    let m2 = 2 * m;
+    let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    h *= d * c;
+    aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d;
+    c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+    let del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < eps) break;
+  }
+  return h;
+}
+
+function betaIncomplete(x, a, b) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const lnBeta = lnGamma(a) + lnGamma(b) - lnGamma(a + b);
+  const prefix = Math.exp(Math.log(x) * a + Math.log(1 - x) * b - lnBeta);
+  if (x < (a + 1) / (a + b + 2)) return prefix * betaCF(x, a, b) / a;
+  return 1 - prefix * betaCF(1 - x, b, a) / b;
+}
+
+function tTestPValue(t, df) {
+  if (df <= 0 || isNaN(t) || isNaN(df)) return 1;
+  const x = df / (df + t * t);
+  return betaIncomplete(x, df / 2, 0.5);
+}
+
+function welchTTest(g1, g2) {
+  const n1 = g1.length, n2 = g2.length;
+  if (n1 < 2 || n2 < 2) return { t: 0, p: 1, df: 0 };
+  const m1 = g1.reduce((a, b) => a + b, 0) / n1;
+  const m2 = g2.reduce((a, b) => a + b, 0) / n2;
+  const v1 = variance(g1), v2 = variance(g2);
+  const se2 = v1 / n1 + v2 / n2;
+  if (se2 === 0) return { t: 0, p: 1, df: n1 + n2 - 2 };
+  const t = (m2 - m1) / Math.sqrt(se2);
+  const df = (se2 * se2) / ((v1 / n1) * (v1 / n1) / (n1 - 1) + (v2 / n2) * (v2 / n2) / (n2 - 1));
+  const p = tTestPValue(Math.abs(t), df);  // one-tailed → multiply by 2 for two-tailed
+  return { t, p: Math.min(p * 2, 1), df };
+}
+
+function pearsonCorr(x, y) {
+  const n = x.length;
+  if (n < 3) return NaN;
+  const mx = x.reduce((a, b) => a + b, 0) / n;
+  const my = y.reduce((a, b) => a + b, 0) / n;
+  let num = 0, dx2 = 0, dy2 = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - mx, dy = y[i] - my;
+    num += dx * dy; dx2 += dx * dx; dy2 += dy * dy;
+  }
+  return dx2 && dy2 ? num / Math.sqrt(dx2 * dy2) : 0;
+}
+
+function spearmanCorr(x, y) {
+  function rank(arr) {
+    const sorted = arr.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+    const ranks = new Array(arr.length);
+    let i = 0;
+    while (i < sorted.length) {
+      let j = i;
+      while (j < sorted.length && sorted[j].v === sorted[i].v) j++;
+      const avg = (i + j - 1) / 2 + 1;
+      for (let k = i; k < j; k++) ranks[sorted[k].i] = avg;
+      i = j;
+    }
+    return ranks;
+  }
+  return pearsonCorr(rank(x), rank(y));
+}
+
+/* ========== ROBUST CSV/TSV PARSER ========== */
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return { headers: [], rows: [], sep: ',', headerCount: 0 };
+  const firstLine = lines[0];
+  const tabCount = (firstLine.match(/\t/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const sep = tabCount > commaCount ? '\t' : ',';
+
+  function splitLine(line) {
+    const result = [];
+    let current = '', inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+        else if (ch === '"') inQuotes = false;
+        else current += ch;
+      } else {
+        if (ch === '"') inQuotes = true;
+        else if (ch === sep) { result.push(current.trim()); current = ''; }
+        else current += ch;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  const headers = splitLine(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const vals = splitLine(line);
+    if (vals[0] && vals[0].startsWith('**')) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = vals[idx] ?? ''; });
+    rows.push(obj);
+  }
+  return { headers, rows, sep, headerCount: headers.length };
+}
+
+/* ========== GROUP DETECTION ========== */
+function detectGroups(headers) {
+  const metaCols = new Set(['UniprotID','GeneSymbol','Description','Peptides','MosaicID']);
+  const numericCols = headers.filter(h => !metaCols.has(h) && !metaCols.has(h.toLowerCase()));
+  if (!numericCols.length) return {};
+  const groups = {};
+  numericCols.forEach(col => {
+    const match = col.match(/^(.+?)_(\d+)$/);
+    if (match) {
+      if (!groups[match[1]]) groups[match[1]] = [];
+      groups[match[1]].push(col);
+    }
+  });
+  const groupNames = Object.keys(groups);
+  const avgSize = groupNames.length > 0
+    ? groupNames.reduce((s, g) => s + groups[g].length, 0) / groupNames.length : 0;
+  if (avgSize >= 2) return groups;
+
+  const groups2 = {};
+  numericCols.forEach(col => {
+    const match = col.match(/^(.+?)_\d+[a-z]*_\d+$/i);
+    if (match) {
+      if (!groups2[match[1]]) groups2[match[1]] = [];
+      groups2[match[1]].push(col);
+    }
+  });
+  const avg2 = Object.keys(groups2).length > 0
+    ? Object.keys(groups2).reduce((s, g) => s + groups2[g].length, 0) / Object.keys(groups2).length : 0;
+  if (avg2 >= 2) return groups2;
+
+  const groups3 = {};
+  numericCols.forEach(col => { groups3[col] = [col]; });
+  return groups3;
+}
+
+function populateSelects(groups, ctrSel, trtSel) {
+  const names = Object.keys(groups);
+  ctrSel.innerHTML = ''; trtSel.innerHTML = '';
+  names.forEach(name => {
+    const label = `${name}  [${groups[name].join(', ')}]`;
+    ctrSel.add(new Option(label, name));
+    trtSel.add(new Option(label, name));
+  });
+  ctrSel.disabled = false; trtSel.disabled = false;
+  const ctrIdx = names.findIndex(n => /^ctr/i.test(n));
+  if (ctrIdx >= 0) ctrSel.selectedIndex = ctrIdx;
+  const trtIdx = names.findIndex((_, i) => i !== (ctrIdx >= 0 ? ctrIdx : -1));
+  if (trtIdx >= 0) trtSel.selectedIndex = trtIdx;
+}
+
+function autoDetectLog(data, groups, checkboxId) {
+  const firstGroup = Object.values(groups)[0];
+  if (!firstGroup) return;
+  let maxVal = 0;
+  for (let i = 0; i < Math.min(20, data.rows.length); i++) {
+    firstGroup.forEach(col => {
+      const v = parseFloat(data.rows[i][col]);
+      if (!isNaN(v) && v > maxVal) maxVal = v;
+    });
+  }
+  document.getElementById(checkboxId).checked = (maxVal < 25);
+}
+
+function showDebug(id, data, groups) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  const gNames = Object.keys(groups);
+  const gSummary = gNames.map(g => `${g} (n=${groups[g].length}): ${groups[g].join(', ')}`).join('\n');
+  el.textContent = `Sep: "${data.sep === '\t' ? 'TAB' : data.sep}" | Cols: ${data.headerCount} | Rows: ${data.rows.length} | Groups: ${gNames.length}\n---\n${gSummary}`;
+}
+
+/* ========== FILE HANDLERS ========== */
+document.getElementById('fileA').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  file.text().then(t => {
+    dataA = parseCSV(t); groupsA = detectGroups(dataA.headers);
+    populateSelects(groupsA, document.getElementById('ctrA'), document.getElementById('trtA'));
+    document.getElementById('labelA').classList.add('loaded');
+    document.getElementById('fnameA').textContent = file.name;
+    autoDetectLog(dataA, groupsA, 'logA'); showDebug('debugA', dataA, groupsA); checkReady();
+  });
+});
+document.getElementById('fileB').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  file.text().then(t => {
+    dataB = parseCSV(t); groupsB = detectGroups(dataB.headers);
+    populateSelects(groupsB, document.getElementById('ctrB'), document.getElementById('trtB'));
+    document.getElementById('labelB').classList.add('loaded');
+    document.getElementById('fnameB').textContent = file.name;
+    autoDetectLog(dataB, groupsB, 'logB'); showDebug('debugB', dataB, groupsB); checkReady();
+  });
+});
+function checkReady() { document.getElementById('runBtn').disabled = !(dataA && dataB); }
+
+/* ========== COMPUTE FC ========== */
+function mean(arr) {
+  const v = arr.filter(x => !isNaN(x));
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN;
+}
+
+function computeFC(data, groups, ctrName, trtName, isLog) {
+  const ctrCols = groups[ctrName], trtCols = groups[trtName];
+  if (!ctrCols || !trtCols) return {};
+  const result = {};
+  data.rows.forEach(r => {
+    const gene = r['GeneSymbol'];
+    if (!gene || gene === 'NA' || gene === '') return;
+    const ctrVals = ctrCols.map(c => parseFloat(r[c])).filter(v => !isNaN(v));
+    const trtVals = trtCols.map(c => parseFloat(r[c])).filter(v => !isNaN(v));
+    if (!ctrVals.length || !trtVals.length) return;
+    const ctrMean = mean(ctrVals), trtMean = mean(trtVals);
+    if (isNaN(ctrMean) || isNaN(trtMean)) return;
+    if (!isLog && ctrMean === 0) return;
+    let fc, log2fc;
+    if (isLog) { log2fc = trtMean - ctrMean; fc = Math.pow(2, log2fc); }
+    else { fc = trtMean / ctrMean; log2fc = Math.log2(fc); }
+    // Welch t-test
+    const tt = welchTTest(ctrVals, trtVals);
+    result[gene] = {
+      fc, log2fc, uniprot: r['UniprotID'], desc: r['Description'], peptides: r['Peptides'],
+      ctrMean: isLog ? ctrMean.toFixed(3) : ctrMean.toFixed(1),
+      trtMean: isLog ? trtMean.toFixed(3) : trtMean.toFixed(1),
+      pValue: tt.p, negLog10p: -Math.log10(Math.max(tt.p, 1e-300)),
+    };
+  });
+  return result;
+}
+
+/* ========== BUILD PLOT ========== */
+document.getElementById('runBtn').addEventListener('click', buildPlot);
+
+function buildPlot() {
+  const threshold = parseFloat(document.getElementById('threshold').value) || 1.25;
+  const log2Thresh = Math.log2(threshold);
+  const ctrA = document.getElementById('ctrA').value;
+  const trtA = document.getElementById('trtA').value;
+  const ctrB = document.getElementById('ctrB').value;
+  const trtB = document.getElementById('trtB').value;
+  const isLogA = document.getElementById('logA').checked;
+  const isLogB = document.getElementById('logB').checked;
+
+  const mapA = computeFC(dataA, groupsA, ctrA, trtA, isLogA);
+  const mapB = computeFC(dataB, groupsB, ctrB, trtB, isLogB);
+  const genes = Object.keys(mapA).filter(g => g in mapB);
+
+  if (genes.length === 0) {
+    alert(`No matching genes found!\n\nDataset A: ${Object.keys(mapA).length} genes\nDataset B: ${Object.keys(mapB).length} genes\n\nCheck that both files have a "GeneSymbol" column.`);
+    return;
+  }
+
+  const x = [], y = [], text = [], colors = [], sizes = [], geneArr = [], uniprotArr = [], catArr = [];
+  let nUp = 0, nDown = 0, nMixed = 0, nSig = 0, nNeutral = 0;
+  const exportRows = [];
+
+  genes.forEach(gene => {
+    const l2A = mapA[gene].log2fc, l2B = mapB[gene].log2fc;
+    x.push(l2A); y.push(l2B);
+    const sigA_up = l2A >= log2Thresh, sigA_down = l2A <= -log2Thresh;
+    const sigB_up = l2B >= log2Thresh, sigB_down = l2B <= -log2Thresh;
+    const sigA = sigA_up || sigA_down, sigB = sigB_up || sigB_down;
+
+    let color = '#475569', size = 5, cat = 'neutral';
+    if (sigA && sigB) {
+      if (sigA_up && sigB_up)          { color = '#34d399'; nUp++; cat = 'up_both'; }
+      else if (sigA_down && sigB_down) { color = '#f472b6'; nDown++; cat = 'down_both'; }
+      else if (sigA_up && sigB_down)   { color = '#facc15'; nMixed++; cat = 'up_A_down_B'; }
+      else                             { color = '#818cf8'; nMixed++; cat = 'down_A_up_B'; }
+      size = 8;
+    } else if (sigA || sigB) {
+      color = '#4f8cff'; nSig++; cat = 'one_axis'; size = 6;
+    } else { nNeutral++; }
+
+    colors.push(color); sizes.push(size); geneArr.push(gene);
+    uniprotArr.push(mapA[gene].uniprot || ''); catArr.push(cat);
+
+    text.push(
+      `<b>${gene}</b> (${mapA[gene].uniprot})<br>` +
+      `${(mapA[gene].desc || '').substring(0, 60)}<br>─────────────────<br>` +
+      `<b>A</b> log₂FC: ${l2A.toFixed(3)}  p=${mapA[gene].pValue.toExponential(2)}<br>` +
+      `<b>B</b> log₂FC: ${l2B.toFixed(3)}  p=${mapB[gene].pValue.toExponential(2)}`
+    );
+
+    exportRows.push({
+      GeneSymbol: gene, UniprotID_A: mapA[gene].uniprot, UniprotID_B: mapB[gene].uniprot,
+      Description: mapA[gene].desc,
+      log2FC_A: l2A, FC_A: mapA[gene].fc, pValue_A: mapA[gene].pValue,
+      log2FC_B: l2B, FC_B: mapB[gene].fc, pValue_B: mapB[gene].pValue,
+      Category: cat
+    });
+  });
+
+  lastPlotData = exportRows;
+  plotGenes = geneArr; plotUniprots = uniprotArr;
+  plotX = x; plotY = y;
+  plotColors = colors; plotSizes = sizes; plotCategories = catArr;
+  pinnedSet.clear(); activeFilter = null; highlightedGenes.clear();
+  lastClickedGene = null;
+  updatePinnedPanel();
+
+  currentCtrA = ctrA; currentTrtA = trtA; currentCtrB = ctrB; currentTrtB = trtB;
+  currentIsLogA = isLogA; currentIsLogB = isLogB;
+
+  // Store volcano data
+  volcanoDataA = genes.map((g, i) => ({ gene: g, log2fc: mapA[g].log2fc, p: mapA[g].pValue, nlp: mapA[g].negLog10p, idx: i }));
+  volcanoDataB = genes.map((g, i) => ({ gene: g, log2fc: mapB[g].log2fc, p: mapB[g].pValue, nlp: mapB[g].negLog10p, idx: i }));
+
+  // Show UI
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('clickHint').style.display = 'block';
+  document.getElementById('searchBar').style.display = 'block';
+  document.getElementById('genesetBar').style.display = 'block';
+  document.getElementById('barplotSection').style.display = 'none';
+  document.getElementById('barCompare').style.display = 'none';
+  document.getElementById('heatmapSection').style.display = 'none';
+  document.getElementById('legendBar').style.display = 'flex';
+  document.getElementById('statsBar').style.display = 'flex';
+  document.getElementById('corrStats').style.display = 'flex';
+  document.getElementById('exportBtn').style.display = 'inline-block';
+  document.getElementById('axisLabels').style.display = 'flex';
+  document.getElementById('modeToggle').style.display = 'flex';
+  document.getElementById('ssBtns').style.display = 'flex';
+  document.getElementById('filterExportBtn').style.display = 'none';
+
+  // Reset mode
+  currentMode = 'scatter';
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === 'scatter'));
+  document.getElementById('plotDiv').style.display = 'block';
+  document.getElementById('volcanoContainer').style.display = 'none';
+
+  // Reset legend filters
+  document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active-filter'));
+
+  document.getElementById('statsBar').innerHTML =
+    `Matched: <span>${genes.length}</span> · Up both: <span style="color:#34d399">${nUp}</span> · ` +
+    `Down both: <span style="color:#f472b6">${nDown}</span> · Discordant: <span style="color:#facc15">${nMixed}</span> · ` +
+    `One axis: <span style="color:#4f8cff">${nSig}</span> · Neutral: <span>${nNeutral}</span>`;
+
+  // Correlation
+  const pr = pearsonCorr(x, y), sr = spearmanCorr(x, y);
+  document.getElementById('corrStats').innerHTML =
+    `Pearson r = <b>${pr.toFixed(4)}</b> · Spearman ρ = <b>${sr.toFixed(4)}</b> · n = <b>${genes.length}</b>`;
+
+  document.getElementById('axisLabels').innerHTML =
+    `X: ${trtA} / ${ctrA} &nbsp;|&nbsp; Y: ${trtB} / ${ctrB} &nbsp;|&nbsp; Threshold: ${threshold}× = ±${log2Thresh.toFixed(3)} log₂`;
+
+  // Symmetric axis
+  const absMax = Math.max(Math.max(...x.map(Math.abs)), Math.max(...y.map(Math.abs))) * 1.1;
+  const axRange = [-absMax, absMax];
+
+  const dash = { color: 'rgba(255,255,255,0.15)', width: 1, dash: 'dash' };
+  const shapes = [
+    { type: 'line', x0: log2Thresh, x1: log2Thresh, y0: -absMax, y1: absMax, line: dash },
+    { type: 'line', x0: -log2Thresh, x1: -log2Thresh, y0: -absMax, y1: absMax, line: dash },
+    { type: 'line', x0: -absMax, x1: absMax, y0: log2Thresh, y1: log2Thresh, line: dash },
+    { type: 'line', x0: -absMax, x1: absMax, y0: -log2Thresh, y1: -log2Thresh, line: dash },
+    { type: 'line', x0: 0, x1: 0, y0: -absMax, y1: absMax, line: { color: 'rgba(255,255,255,0.08)', width: 1 } },
+    { type: 'line', x0: -absMax, x1: absMax, y0: 0, y1: 0, line: { color: 'rgba(255,255,255,0.08)', width: 1 } },
+    { type: 'line', x0: -absMax, x1: absMax, y0: -absMax, y1: absMax, line: { color: 'rgba(255,255,255,0.05)', width: 1 } },
+  ];
+
+  // Regression line
+  const n = x.length;
+  const mx = x.reduce((a,b)=>a+b,0)/n, my = y.reduce((a,b)=>a+b,0)/n;
+  let num=0, den=0;
+  for (let i=0;i<n;i++) { num+=(x[i]-mx)*(y[i]-my); den+=(x[i]-mx)*(x[i]-mx); }
+  if (den) {
+    const slope = num/den, intercept = my - slope*mx;
+    shapes.push({ type:'line', x0:-absMax, x1:absMax, y0:intercept+slope*(-absMax), y1:intercept+slope*absMax,
+      line:{ color:'rgba(79,140,255,0.25)', width:1.5, dash:'dot' } });
+  }
+
+  Plotly.newPlot('plotDiv', [{
+    x, y, mode: 'markers', type: 'scattergl', text, hoverinfo: 'text',
+    marker: { color: colors, size: sizes, opacity: 0.85, line: { width: 0.5, color: 'rgba(255,255,255,0.12)' } }
+  }], {
+    paper_bgcolor: '#141825', plot_bgcolor: '#0f1220',
+    font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 12 },
+    xaxis: { title: { text: `Dataset A — log₂(FC)  ${trtA} / ${ctrA}`, font: { size: 13 } }, range: axRange, gridcolor: 'rgba(255,255,255,0.035)', zerolinecolor: 'rgba(255,255,255,0.08)', tickfont: { family: 'JetBrains Mono', size: 10 }, dtick: 0.5 },
+    yaxis: { title: { text: `Dataset B — log₂(FC)  ${trtB} / ${ctrB}`, font: { size: 13 } }, range: axRange, gridcolor: 'rgba(255,255,255,0.035)', zerolinecolor: 'rgba(255,255,255,0.08)', tickfont: { family: 'JetBrains Mono', size: 10 }, dtick: 0.5, scaleanchor: 'x', scaleratio: 1 },
+    shapes, margin: { l: 70, r: 30, t: 20, b: 70 },
+    hoverlabel: { bgcolor: '#1a1f33', bordercolor: '#2a3050', font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' }, align: 'left' },
+    dragmode: 'zoom',
+  }, { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false });
+
+  // Click handler
+  const plotDiv = document.getElementById('plotDiv');
+  plotDiv.on('plotly_click', function(eventData) {
+    if (!eventData.points || !eventData.points.length) return;
+    const idx = eventData.points[0].pointIndex;
+    const gene = plotGenes[idx];
+    if (!gene) return;
+    if (pinnedSet.has(gene)) { pinnedSet.delete(gene); } else { pinnedSet.add(gene); }
+    lastClickedGene = gene;
+    refreshAnnotations(); updatePinnedPanel(); showBarPlot(gene);
+  });
+}
+
+/* ========== ANNOTATION & PIN MANAGEMENT ========== */
+function refreshAnnotations() {
+  if (currentMode !== 'scatter') return;
+  const annotations = [];
+
+  // Highlighted genes — gold labels (drawn first so pinned renders on top)
+  const hlArr = [...highlightedGenes];
+  const offsets = [{ax:0,ay:-16},{ax:0,ay:18},{ax:22,ay:-12},{ax:-22,ay:-12},{ax:22,ay:14},{ax:-22,ay:14}];
+  hlArr.forEach((gene, i) => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx === -1) return;
+    const o = offsets[i % offsets.length];
+    annotations.push({
+      x: plotX[idx], y: plotY[idx], text: gene,
+      showarrow: true, arrowhead: 0, arrowwidth: 1, arrowcolor: 'rgba(250,204,21,0.5)',
+      ax: o.ax, ay: o.ay,
+      bgcolor: 'rgba(20,24,37,0.88)', bordercolor: 'rgba(250,204,21,0.7)', borderwidth: 1, borderpad: 2,
+      font: { family: 'JetBrains Mono', size: 8.5, color: '#facc15' },
+    });
+  });
+
+  // Pinned proteins — blue labels with arrows (on top)
+  pinnedSet.forEach(gene => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx === -1) return;
+    annotations.push({
+      x: plotX[idx], y: plotY[idx], text: `<b>${gene}</b>`,
+      showarrow: true, arrowhead: 2, arrowsize: 0.8, arrowwidth: 1.5, arrowcolor: '#4f8cff',
+      ax: 25, ay: -30, bgcolor: 'rgba(20,24,37,0.92)', bordercolor: '#4f8cff', borderwidth: 1, borderpad: 4,
+      font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' },
+    });
+  });
+
+  Plotly.relayout('plotDiv', { annotations });
+}
+
+function updatePinnedPanel() {
+  const panel = document.getElementById('pinnedPanel');
+  const list = document.getElementById('pinnedList');
+  if (pinnedSet.size === 0) {
+    panel.style.display = 'none'; list.innerHTML = '';
+    document.getElementById('barCompare').style.display = 'none';
+    document.getElementById('heatmapSection').style.display = 'none';
+    return;
+  }
+  panel.style.display = 'block'; list.innerHTML = '';
+  pinnedSet.forEach(gene => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx === -1) return;
+    const uniprot = plotUniprots[idx];
+    const chip = document.createElement('div'); chip.className = 'pinned-chip';
+    const uniprotLink = uniprot ? `<a href="https://www.uniprot.org/uniprot/${encodeURIComponent(uniprot)}" target="_blank" rel="noopener">UniProt</a>` : '';
+    chip.innerHTML = `<span class="gene-name">${gene}</span><span class="fc-info">A:${plotX[idx].toFixed(3)} B:${plotY[idx].toFixed(3)}</span>${uniprotLink}<span class="remove-pin" title="Unpin">&times;</span>`;
+    chip.querySelector('.remove-pin').addEventListener('click', () => {
+      pinnedSet.delete(gene); refreshAnnotations(); updatePinnedPanel();
+    });
+    list.appendChild(chip);
+  });
+  // Update comparison & heatmap
+  if (pinnedSet.size >= 2) { updateBarComparison(); updateHeatmap(); }
+  else { document.getElementById('barCompare').style.display = 'none'; document.getElementById('heatmapSection').style.display = 'none'; }
+}
+
+document.getElementById('clearPinsBtn').addEventListener('click', () => {
+  pinnedSet.clear(); refreshAnnotations(); updatePinnedPanel();
+  document.getElementById('barplotSection').style.display = 'none';
+});
+
+/* ========== BAR PLOT (single protein) ========== */
+function showBarPlot(gene) {
+  const section = document.getElementById('barplotSection');
+  const titleEl = document.getElementById('barplotTitle');
+  const rowA = dataA ? dataA.rows.find(r => r['GeneSymbol'] === gene) : null;
+  const rowB = dataB ? dataB.rows.find(r => r['GeneSymbol'] === gene) : null;
+  if (!rowA && !rowB) { section.style.display = 'none'; return; }
+
+  section.style.display = 'block';
+  const uniprot = (rowA && rowA['UniprotID']) || (rowB && rowB['UniprotID']) || '';
+  titleEl.innerHTML = `<b>${gene}</b>` + (uniprot ? ` (${uniprot})` : '') + ` — All Channels`;
+
+  function buildBars(divId, row, groups, isLog) {
+    if (!row || !groups) { Plotly.purge(document.getElementById(divId)); return; }
+    const traces = [];
+    Object.keys(groups).forEach((gName, gi) => {
+      const cols = groups[gName];
+      const vals = cols.map(c => { const v = parseFloat(row[c]); return isNaN(v) ? 0 : v; });
+      traces.push({ x: cols, y: vals, type: 'bar', name: gName,
+        marker: { color: GROUP_COLORS[gi % GROUP_COLORS.length], opacity: 0.85, line: { width: 0.5, color: 'rgba(255,255,255,0.15)' } },
+        hovertemplate: `<b>${gName}</b><br>%{x}: %{y:.3f}<extra></extra>` });
+    });
+    Plotly.newPlot(divId, traces, {
+      paper_bgcolor: '#141825', plot_bgcolor: '#0f1220',
+      font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 11 },
+      xaxis: { tickangle: -45, tickfont: { family: 'JetBrains Mono', size: 8 }, gridcolor: 'rgba(255,255,255,0.035)' },
+      yaxis: { title: { text: isLog ? 'log₂(Abundance)' : 'Abundance', font: { size: 11 } }, gridcolor: 'rgba(255,255,255,0.06)', tickfont: { family: 'JetBrains Mono', size: 9 } },
+      barmode: 'group', showlegend: true, legend: { orientation: 'h', y: -0.35, x: 0.5, xanchor: 'center', font: { size: 9 } },
+      margin: { l: 55, r: 15, t: 10, b: 90 },
+    }, { responsive: true, displayModeBar: false });
+  }
+  buildBars('barPlotA', rowA, groupsA, currentIsLogA);
+  buildBars('barPlotB', rowB, groupsB, currentIsLogB);
+}
+
+/* ========== BAR COMPARISON (multi-protein) ========== */
+function updateBarComparison() {
+  const section = document.getElementById('barCompare');
+  if (pinnedSet.size < 2) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  const pinned = [...pinnedSet];
+
+  function buildCompare(divId, data, groups, isLog) {
+    if (!data || !groups) { Plotly.purge(document.getElementById(divId)); return; }
+    const gNames = Object.keys(groups);
+    const traces = [];
+    pinned.forEach((gene, pi) => {
+      const row = data.rows.find(r => r['GeneSymbol'] === gene);
+      if (!row) return;
+      const means = [], sems = [], labels = [];
+      gNames.forEach(gName => {
+        const vals = groups[gName].map(c => parseFloat(row[c])).filter(v => !isNaN(v));
+        means.push(vals.length ? mean(vals) : 0);
+        sems.push(vals.length > 1 ? sem(vals) : 0);
+        labels.push(gName);
+      });
+      traces.push({ x: labels, y: means, error_y: { type: 'data', array: sems, visible: true, color: PROTEIN_COLORS[pi % PROTEIN_COLORS.length] },
+        type: 'bar', name: gene, marker: { color: PROTEIN_COLORS[pi % PROTEIN_COLORS.length], opacity: 0.85 } });
+    });
+    Plotly.newPlot(divId, traces, {
+      paper_bgcolor: '#141825', plot_bgcolor: '#0f1220',
+      font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 11 },
+      xaxis: { tickfont: { family: 'JetBrains Mono', size: 9 }, gridcolor: 'rgba(255,255,255,0.035)' },
+      yaxis: { title: { text: isLog ? 'log₂(Abundance)' : 'Abundance', font: { size: 11 } }, gridcolor: 'rgba(255,255,255,0.06)', tickfont: { family: 'JetBrains Mono', size: 9 } },
+      barmode: 'group', showlegend: true, legend: { orientation: 'h', y: -0.25, x: 0.5, xanchor: 'center', font: { size: 9, family: 'JetBrains Mono' } },
+      margin: { l: 55, r: 15, t: 10, b: 60 },
+    }, { responsive: true, displayModeBar: false });
+  }
+  buildCompare('barCompareA', dataA, groupsA, currentIsLogA);
+  buildCompare('barCompareB', dataB, groupsB, currentIsLogB);
+}
+
+/* ========== HEATMAP ========== */
+function updateHeatmap() {
+  const section = document.getElementById('heatmapSection');
+  if (pinnedSet.size < 2) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  const pinned = [...pinnedSet];
+
+  // Collect all channel columns and values
+  const colsA = Object.keys(groupsA).flatMap(g => groupsA[g]);
+  const colsB = Object.keys(groupsB).flatMap(g => groupsB[g]);
+  const allCols = colsA.map(c => 'A:' + c).concat(colsB.map(c => 'B:' + c));
+
+  const z = [], yLabels = [];
+  pinned.forEach(gene => {
+    const rowA = dataA ? dataA.rows.find(r => r['GeneSymbol'] === gene) : null;
+    const rowB = dataB ? dataB.rows.find(r => r['GeneSymbol'] === gene) : null;
+    const vals = [];
+    colsA.forEach(c => { vals.push(rowA ? parseFloat(rowA[c]) || 0 : 0); });
+    colsB.forEach(c => { vals.push(rowB ? parseFloat(rowB[c]) || 0 : 0); });
+    // Z-score per protein
+    const m = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((s, v) => s + (v - m) * (v - m), 0) / vals.length);
+    z.push(sd > 0 ? vals.map(v => (v - m) / sd) : vals.map(() => 0));
+    yLabels.push(gene);
+  });
+
+  const height = Math.max(200, pinned.length * 35 + 100);
+  document.getElementById('heatmapDiv').style.height = height + 'px';
+
+  Plotly.newPlot('heatmapDiv', [{
+    z, x: allCols, y: yLabels, type: 'heatmap',
+    colorscale: [[0, '#2563eb'], [0.5, '#0f1220'], [1, '#dc2626']],
+    hovertemplate: '<b>%{y}</b><br>%{x}: %{z:.2f}<extra></extra>',
+    colorbar: { title: 'Z-score', titlefont: { size: 10 }, tickfont: { size: 9 }, len: 0.8 },
+  }], {
+    paper_bgcolor: '#141825', plot_bgcolor: '#0f1220',
+    font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 11 },
+    xaxis: { tickangle: -45, tickfont: { family: 'JetBrains Mono', size: 7 }, side: 'bottom' },
+    yaxis: { tickfont: { family: 'JetBrains Mono', size: 10 }, autorange: 'reversed' },
+    margin: { l: 90, r: 60, t: 10, b: 100 },
+  }, { responsive: true, displayModeBar: false });
+}
+
+/* ========== VOLCANO PLOT ========== */
+function buildVolcano(volcData, label, ctrName, trtName) {
+  if (!volcData) return;
+  const threshold = parseFloat(document.getElementById('threshold').value) || 1.25;
+  const log2Thresh = Math.log2(threshold);
+  const pCutoff = parseFloat(document.getElementById('pvalThreshold').value) || 0.05;
+  const pThresh = -Math.log10(pCutoff);
+
+  const x = [], y = [], text = [], colors = [], sizes = [];
+  volcData.forEach(d => {
+    x.push(d.log2fc); y.push(d.nlp);
+    const sigFC = Math.abs(d.log2fc) >= log2Thresh;
+    const sigP = d.nlp >= pThresh;
+    let color = '#475569', size = 4;
+    if (sigFC && sigP) {
+      color = d.log2fc > 0 ? '#34d399' : '#f472b6'; size = 7;
+    } else if (sigFC || sigP) {
+      color = '#4f8cff'; size = 5;
+    }
+    colors.push(color); sizes.push(size);
+    text.push(`<b>${d.gene}</b><br>log₂FC: ${d.log2fc.toFixed(3)}<br>p: ${d.p.toExponential(2)}<br>-log₁₀(p): ${d.nlp.toFixed(2)}`);
+  });
+
+  const xMax = Math.max(...x.map(Math.abs)) * 1.1;
+  const yMax = Math.max(...y) * 1.1;
+  const dash = { color: 'rgba(255,255,255,0.15)', width: 1, dash: 'dash' };
+
+  Plotly.newPlot('volcanoDiv', [{
+    x, y, mode: 'markers', type: 'scattergl', text, hoverinfo: 'text',
+    marker: { color: colors, size: sizes, opacity: 0.85, line: { width: 0.5, color: 'rgba(255,255,255,0.12)' } }
+  }], {
+    paper_bgcolor: '#141825', plot_bgcolor: '#0f1220',
+    font: { family: 'DM Sans, sans-serif', color: '#c8cdd8', size: 12 },
+    xaxis: { title: { text: `log₂(FC)  ${trtName} / ${ctrName}`, font: { size: 13 } }, range: [-xMax, xMax], gridcolor: 'rgba(255,255,255,0.035)', tickfont: { family: 'JetBrains Mono', size: 10 } },
+    yaxis: { title: { text: '-log₁₀(p-value)', font: { size: 13 } }, range: [0, yMax], gridcolor: 'rgba(255,255,255,0.035)', tickfont: { family: 'JetBrains Mono', size: 10 } },
+    shapes: [
+      { type: 'line', x0: log2Thresh, x1: log2Thresh, y0: 0, y1: yMax, line: dash },
+      { type: 'line', x0: -log2Thresh, x1: -log2Thresh, y0: 0, y1: yMax, line: dash },
+      { type: 'line', x0: -xMax, x1: xMax, y0: pThresh, y1: pThresh, line: { color: 'rgba(244,114,182,0.4)', width: 1, dash: 'dash' } },
+    ],
+    margin: { l: 70, r: 30, t: 20, b: 70 },
+    hoverlabel: { bgcolor: '#1a1f33', bordercolor: '#2a3050', font: { family: 'JetBrains Mono', size: 11, color: '#e8ecf4' }, align: 'left' },
+    dragmode: 'zoom',
+  }, { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false });
+
+  // Click on volcano → pin + bar
+  document.getElementById('volcanoDiv').on('plotly_click', function(ev) {
+    if (!ev.points || !ev.points.length) return;
+    const gene = volcData[ev.points[0].pointIndex].gene;
+    if (!gene) return;
+    if (pinnedSet.has(gene)) pinnedSet.delete(gene); else pinnedSet.add(gene);
+    lastClickedGene = gene;
+    updatePinnedPanel(); showBarPlot(gene);
+  });
+}
+
+/* ========== MODE TOGGLE ========== */
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    if (mode === currentMode || !plotGenes.length) return;
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+
+    if (mode === 'scatter') {
+      document.getElementById('plotDiv').style.display = 'block';
+      document.getElementById('volcanoContainer').style.display = 'none';
+      document.getElementById('legendBar').style.display = 'flex';
+      document.getElementById('pvalGroup').style.display = 'none';
+    } else {
+      document.getElementById('plotDiv').style.display = 'none';
+      document.getElementById('volcanoContainer').style.display = 'block';
+      document.getElementById('legendBar').style.display = 'none';
+      document.getElementById('pvalGroup').style.display = 'flex';
+      if (mode === 'volcanoA') buildVolcano(volcanoDataA, 'A', currentCtrA, currentTrtA);
+      else buildVolcano(volcanoDataB, 'B', currentCtrB, currentTrtB);
+    }
+  });
+});
+
+// p-value threshold: update note & rebuild volcano on change
+document.getElementById('pvalThreshold').addEventListener('input', () => {
+  const val = parseFloat(document.getElementById('pvalThreshold').value);
+  if (!val || val <= 0 || val >= 1) return;
+  document.getElementById('pvalNote').textContent = `-log₁₀ = ${(-Math.log10(val)).toFixed(3)}`;
+  if (currentMode === 'volcanoA') buildVolcano(volcanoDataA, 'A', currentCtrA, currentTrtA);
+  else if (currentMode === 'volcanoB') buildVolcano(volcanoDataB, 'B', currentCtrB, currentTrtB);
+});
+
+/* ========== QUADRANT FILTER ========== */
+document.getElementById('legendBar').addEventListener('click', e => {
+  const item = e.target.closest('.legend-item[data-cat]');
+  if (!item || !plotGenes.length) return;
+  const cat = item.dataset.cat;
+
+  if (activeFilter === cat) {
+    // Clear filter
+    activeFilter = null;
+    document.querySelectorAll('.legend-item').forEach(el => el.classList.remove('active-filter'));
+    document.getElementById('filterExportBtn').style.display = 'none';
+    Plotly.restyle('plotDiv', { 'marker.color': [plotColors], 'marker.size': [plotSizes], 'marker.opacity': 0.85 });
+  } else {
+    activeFilter = cat;
+    document.querySelectorAll('.legend-item').forEach(el => el.classList.toggle('active-filter', el.dataset.cat === cat));
+    document.getElementById('filterExportBtn').style.display = 'inline-block';
+    const newColors = plotCategories.map((c, i) => c === cat ? plotColors[i] : 'rgba(50,55,70,0.12)');
+    const newSizes = plotCategories.map((c, i) => c === cat ? plotSizes[i] + 2 : 3);
+    Plotly.restyle('plotDiv', { 'marker.color': [newColors], 'marker.size': [newSizes], 'marker.opacity': 1 });
+  }
+});
+
+document.getElementById('filterExportBtn').addEventListener('click', () => {
+  if (!activeFilter || !lastPlotData) return;
+  const filtered = lastPlotData.filter(r => r.Category === activeFilter);
+  if (!filtered.length) return;
+  const h = Object.keys(filtered[0]);
+  const csv = [h.join(','), ...filtered.map(r => h.map(k => { const v = r[k]; return typeof v === 'number' ? v.toFixed(4) : `"${String(v).replace(/"/g, '""')}"`; }).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `filtered_${activeFilter}.csv`;
+  a.click();
+});
+
+/* ========== GENE SET HIGHLIGHT ========== */
+document.getElementById('genesetToggle').addEventListener('click', () => {
+  const body = document.getElementById('genesetBody');
+  const toggle = document.getElementById('genesetToggle');
+  const open = body.classList.toggle('open');
+  toggle.innerHTML = (open ? '&#9660;' : '&#9654;') + ' Gene Set Highlight';
+});
+
+// Tab switching
+document.querySelectorAll('.gs-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.gs-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.getElementById('gsManualPanel').classList.toggle('active', tab.dataset.tab === 'manual');
+    document.getElementById('gsGOPanel').classList.toggle('active', tab.dataset.tab === 'go');
+  });
+});
+
+// Shared: apply highlight overlay via annotations (renders on top of WebGL)
+function applyHighlightOverlay(geneList) {
+  highlightedGenes.clear();
+  let count = 0;
+  geneList.forEach(gene => {
+    const idx = plotGenes.indexOf(gene);
+    if (idx >= 0) { highlightedGenes.add(gene); count++; }
+  });
+  refreshAnnotations();
+  return count;
+}
+
+function clearHighlightOverlay() {
+  highlightedGenes.clear();
+  refreshAnnotations();
+}
+
+// Manual highlight
+document.getElementById('genesetHighlight').addEventListener('click', () => {
+  const raw = document.getElementById('genesetInput').value;
+  const names = raw.split(/[\n,;\t]+/).map(s => s.trim()).filter(Boolean);
+  if (!names.length || !plotGenes.length) return;
+  const nameSet = new Set(names.map(n => n.toUpperCase()));
+  const matched = plotGenes.filter(g => nameSet.has(g.toUpperCase()));
+  const found = applyHighlightOverlay(matched);
+  document.getElementById('genesetCount').textContent = `${found}/${names.length} found`;
+});
+
+document.getElementById('genesetClear').addEventListener('click', () => {
+  clearHighlightOverlay();
+  document.getElementById('genesetInput').value = '';
+  document.getElementById('genesetCount').textContent = '';
+});
+
+/* ========== GO TERM SEARCH (QuickGO API) ========== */
+let goGeneSet = [];
+
+document.getElementById('goSearchBtn').addEventListener('click', searchGOTerms);
+document.getElementById('goSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchGOTerms(); });
+
+async function searchGOTerms() {
+  const keyword = document.getElementById('goSearchInput').value.trim();
+  if (!keyword) return;
+  const resultsDiv = document.getElementById('goResults');
+  const infoDiv = document.getElementById('goInfo');
+  infoDiv.style.display = 'none';
+  resultsDiv.innerHTML = '<div class="go-msg">Searching GO terms…</div>';
+
+  try {
+    const resp = await fetch(
+      `https://www.ebi.ac.uk/QuickGO/services/ontology/go/search?query=${encodeURIComponent(keyword)}&limit=20`,
+      { headers: { 'Accept': 'application/json' } }
+    );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    resultsDiv.innerHTML = '';
+
+    if (!data.results || !data.results.length) {
+      resultsDiv.innerHTML = '<div class="go-msg">No GO terms found for this keyword</div>';
+      return;
+    }
+
+    const aspectMap = { biological_process: ['BP', 'go-aspect-bp'], molecular_function: ['MF', 'go-aspect-mf'], cellular_component: ['CC', 'go-aspect-cc'] };
+    data.results.forEach(term => {
+      if (term.isObsolete) return;
+      const [tag, cls] = aspectMap[term.aspect] || ['?', ''];
+      const div = document.createElement('div');
+      div.className = 'go-item';
+      div.innerHTML = `<span class="go-aspect ${cls}">${tag}</span><span class="go-item-name">${term.name}</span><span class="go-item-id">${term.id}</span>`;
+      div.addEventListener('click', () => {
+        document.querySelectorAll('.go-item').forEach(el => el.classList.remove('selected'));
+        div.classList.add('selected');
+        fetchGOAnnotations(term.id, term.name);
+      });
+      resultsDiv.appendChild(div);
+    });
+  } catch (err) {
+    resultsDiv.innerHTML = `<div class="go-msg" style="color:#f472b6">Error: ${err.message}</div>`;
+  }
+}
+
+async function fetchGOAnnotations(goId, goName) {
+  const loading = document.getElementById('goLoading');
+  const infoDiv = document.getElementById('goInfo');
+  const hlBtn = document.getElementById('goHighlightBtn');
+  const countEl = document.getElementById('goCount');
+
+  loading.style.display = 'block';
+  loading.textContent = `Querying UniProt for ${goId}…`;
+  infoDiv.style.display = 'none';
+  hlBtn.disabled = true;
+  goGeneSet = [];
+  countEl.textContent = '';
+
+  try {
+    // Use UniProt REST API — stream all accessions for this GO term
+    const goNum = goId.replace('GO:', '');
+    const url = `https://rest.uniprot.org/uniprotkb/stream?query=(go:${goNum})&fields=accession&format=list`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`UniProt HTTP ${resp.status}`);
+    const text = await resp.text();
+    const goAccessions = new Set(text.trim().split('\n').filter(Boolean));
+
+    loading.textContent = `Cross-referencing ${goAccessions.size.toLocaleString()} proteins with dataset…`;
+
+    // Cross-reference with dataset by UniprotID (strip isoform suffix for matching)
+    const matched = [];
+    if (plotGenes.length > 0) {
+      plotGenes.forEach((gene, i) => {
+        const uid = plotUniprots[i];
+        if (!uid) return;
+        // Match full ID or canonical (strip -N isoform suffix)
+        if (goAccessions.has(uid) || goAccessions.has(uid.split('-')[0])) {
+          matched.push(gene);
+        }
+      });
+    }
+
+    goGeneSet = matched;
+    loading.style.display = 'none';
+    infoDiv.style.display = 'block';
+    infoDiv.innerHTML = `<b>${goId}</b> — ${goName}<br>` +
+      `${goAccessions.size.toLocaleString()} UniProt proteins annotated with this GO term<br>` +
+      `<b style="color:${matched.length ? '#34d399' : '#f472b6'}">${matched.length} matched</b> in your dataset (by UniprotID)`;
+    hlBtn.disabled = matched.length === 0;
+    countEl.textContent = `${matched.length} in dataset`;
+  } catch (err) {
+    loading.style.display = 'none';
+    infoDiv.style.display = 'block';
+    infoDiv.innerHTML = `<span style="color:#f472b6">Error: ${err.message}</span>`;
+  }
+}
+
+document.getElementById('goHighlightBtn').addEventListener('click', () => {
+  if (!goGeneSet.length || !plotGenes.length) return;
+  const found = applyHighlightOverlay(goGeneSet);
+  document.getElementById('goCount').textContent = `${found} highlighted`;
+});
+
+document.getElementById('goClearBtn').addEventListener('click', () => {
+  goGeneSet = [];
+  clearHighlightOverlay();
+  document.getElementById('goResults').innerHTML = '';
+  document.getElementById('goInfo').style.display = 'none';
+  document.getElementById('goLoading').style.display = 'none';
+  document.getElementById('goCount').textContent = '';
+  document.getElementById('goHighlightBtn').disabled = true;
+  document.getElementById('goSearchInput').value = '';
+});
+
+/* ========== SCREENSHOT / EXPORT ========== */
+document.getElementById('ssPNG').addEventListener('click', () => {
+  const div = currentMode === 'scatter' ? 'plotDiv' : 'volcanoDiv';
+  Plotly.downloadImage(div, { format: 'png', width: 1200, height: 800, filename: `proteomics_${currentMode}` });
+});
+document.getElementById('ssSVG').addEventListener('click', () => {
+  const div = currentMode === 'scatter' ? 'plotDiv' : 'volcanoDiv';
+  Plotly.downloadImage(div, { format: 'svg', width: 1200, height: 800, filename: `proteomics_${currentMode}` });
+});
+
+/* ========== SEARCH ========== */
+const searchInput = document.getElementById('searchInput');
+const searchSuggestions = document.getElementById('searchSuggestions');
+
+searchInput.addEventListener('input', () => {
+  const query = searchInput.value.trim().toLowerCase();
+  searchSuggestions.innerHTML = '';
+  if (!query || !plotGenes.length) { searchSuggestions.style.display = 'none'; return; }
+  const matches = [];
+  for (let i = 0; i < plotGenes.length && matches.length < 15; i++) {
+    if (plotGenes[i].toLowerCase().includes(query) || plotUniprots[i].toLowerCase().includes(query))
+      matches.push({ gene: plotGenes[i], uniprot: plotUniprots[i], idx: i });
+  }
+  if (!matches.length) { searchSuggestions.style.display = 'none'; return; }
+  searchSuggestions.style.display = 'block';
+  matches.forEach(m => {
+    const div = document.createElement('div'); div.className = 'sug-item';
+    div.innerHTML = `<span><span class="sug-gene">${m.gene}</span> <span class="sug-id">${m.uniprot}</span></span><span class="sug-fc">A:${plotX[m.idx].toFixed(3)} B:${plotY[m.idx].toFixed(3)}</span>`;
+    div.addEventListener('click', () => { selectProtein(m.gene); searchInput.value = m.gene; searchSuggestions.style.display = 'none'; });
+    searchSuggestions.appendChild(div);
+  });
+});
+
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const query = searchInput.value.trim().toLowerCase();
+    const idx = plotGenes.findIndex(g => g.toLowerCase() === query);
+    if (idx >= 0) { selectProtein(plotGenes[idx]); searchSuggestions.style.display = 'none'; }
+    else if (searchSuggestions.querySelector('.sug-item')) searchSuggestions.querySelector('.sug-item').click();
+  }
+  if (e.key === 'Escape') searchSuggestions.style.display = 'none';
+});
+
+document.addEventListener('click', e => { if (!e.target.closest('.search-bar')) searchSuggestions.style.display = 'none'; });
+
+function selectProtein(gene) {
+  if (!pinnedSet.has(gene)) { pinnedSet.add(gene); refreshAnnotations(); updatePinnedPanel(); }
+  lastClickedGene = gene;
+  showBarPlot(gene);
+}
+
+/* ========== EXPORT ========== */
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (!lastPlotData) return;
+  const h = Object.keys(lastPlotData[0]);
+  const csv = [h.join(','), ...lastPlotData.map(r => h.map(k => { const v = r[k]; return typeof v === 'number' ? v.toFixed(4) : `"${String(v).replace(/"/g, '""')}"`; }).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'fold_change_scatter_data.csv';
+  a.click();
+});
+</script>
+
+</body>
+</html>
